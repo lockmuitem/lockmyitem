@@ -1,0 +1,35 @@
+<view class="page">
+  <view class="section-title">真实校园地图</view>
+  <view class="map-panel">
+    <image class="real-map" src="{{officialMapImage}}" mode="aspectFill" />
+    <view class="map-shade"></view>
+    <view class="map-source">上海科技大学校园地图</view>
+    <view
+      wx:for="{{locations}}"
+      wx:key="_id"
+      class="pin {{activeLocationId === item._id ? 'active' : ''}}"
+      style="left: {{item.mapX}}%; top: {{item.mapY}}%;"
+      bindtap="selectLocation"
+      data-id="{{item._id}}"
+    >
+      <text></text>
+    </view>
+  </view>
+
+  <view class="card map-info">
+    <view>
+      <view class="location-title">{{activeLocation.name}}</view>
+      <view class="muted">{{activeLocation.area}} · 附近共有 {{nearbyItems.length}} 条线索</view>
+    </view>
+    <button class="button-secondary compact" bindtap="openOfficialMap">官网地图</button>
+  </view>
+
+  <view wx:if="{{nearbyItems.length === 0}}" class="empty">这里暂时没有线索</view>
+  <view wx:for="{{nearbyItems}}" wx:key="_id" class="mini-card" bindtap="goDetail" data-id="{{item._id}}">
+    <view>
+      <text class="mini-title">{{item.title}}</text>
+      <text class="mini-meta">{{item.type === 'lost' ? '寻物' : '招领'}} · {{item.category}}</text>
+    </view>
+    <text class="arrow">›</text>
+  </view>
+</view>

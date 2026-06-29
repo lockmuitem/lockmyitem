@@ -1,0 +1,48 @@
+<view class="page" wx:if="{{item}}">
+  <view class="detail-image">
+    <image wx:if="{{item.thumbUrl}}" src="{{item.thumbUrl}}" mode="aspectFill" />
+    <text wx:else>{{item.category}}</text>
+  </view>
+
+  <view class="card">
+    <view class="detail-head">
+      <text class="title">{{item.title}}</text>
+      <text class="type-pill">{{item.type === 'lost' ? '寻物' : '招领'}}</text>
+    </view>
+    <text class="desc">{{item.description}}</text>
+    <view>
+      <text class="tag active">{{item.category}}</text>
+      <text wx:for="{{item.aiTags}}" wx:key="*this" class="tag">{{item}}</text>
+    </view>
+  </view>
+
+  <view class="card map-preview" wx:if="{{item.locationName}}">
+    <view>
+      <text class="location-name">{{item.locationName}}</text>
+      <text class="muted">校内地点</text>
+    </view>
+    <view class="mini-map">
+      <view class="mini-pin" style="left: {{item.mapX}}%; top: {{item.mapY}}%;"></view>
+    </view>
+  </view>
+
+  <view class="action-grid">
+    <button class="button-secondary" bindtap="sendThanks">感谢发帖人</button>
+    <button wx:if="{{item.status === 'active' && isMine}}" class="button-primary" bindtap="markReturned">已回家</button>
+    <button wx:if="{{item.status === 'returned' && isMine}}" class="button-secondary" bindtap="undoReturned">撤回已回家</button>
+    <button class="button-danger" bindtap="reportItem">举报</button>
+  </view>
+
+  <view class="section-title">评论</view>
+  <view wx:for="{{comments}}" wx:key="_id" class="comment">
+    <text class="comment-name">{{item.authorName}}</text>
+    <text class="comment-content">{{item.content}}</text>
+  </view>
+  <view wx:if="{{comments.length === 0}}" class="empty small">还没有评论</view>
+
+  <view class="comment-box">
+    <input placeholder="写下线索或领取信息" value="{{commentText}}" bindinput="onCommentInput" />
+    <button bindtap="createComment">发送</button>
+  </view>
+</view>
+<view wx:else class="page empty">帖子不存在或已被隐藏</view>

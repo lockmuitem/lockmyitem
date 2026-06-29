@@ -1,0 +1,12 @@
+<view class="page">
+  <view class="section-title">已回家分区</view>
+  <view class="muted intro">这里展示已经找回或归还的物品，避免其他同学继续误认。</view>
+  <view wx:if="{{items.length === 0}}" class="empty">还没有已找到记录</view>
+  <view wx:for="{{items}}" wx:key="_id" class="card found-card" bindtap="goDetail" data-id="{{item._id}}">
+    <view class="badge">已回家</view>
+    <view>
+      <text class="title">{{item.title}}</text>
+      <text class="meta">{{item.category}}{{item.locationName ? ' · ' + item.locationName : ''}}</text>
+    </view>
+  </view>
+</view>

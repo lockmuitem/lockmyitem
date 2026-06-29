@@ -1,0 +1,29 @@
+.notice {
+  display: block;
+}
+
+.notice-type {
+  display: inline-flex;
+  margin-bottom: 12rpx;
+  padding: 6rpx 14rpx;
+  color: #0f766e;
+  background: #e7f5f2;
+  border-radius: 6rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.notice-content,
+.notice-time {
+  display: block;
+}
+
+.notice-content {
+  color: #172026;
+}
+
+.notice-time {
+  margin-top: 10rpx;
+  color: #98a2b3;
+  font-size: 22rpx;
+}

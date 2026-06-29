@@ -1,0 +1,35 @@
+<view class="page">
+  <view class="profile card">
+    <view class="avatar">{{user.nickName ? user.nickName.slice(0, 1) : '微'}}</view>
+    <view>
+      <text class="name">{{user.nickName}}</text>
+      <text class="muted">微信一键登录 · 校园互助账号</text>
+    </view>
+  </view>
+
+  <view class="quick-actions">
+    <button class="button-secondary" bindtap="goMessages">消息中心</button>
+    <button class="button-primary" bindtap="goPublish">继续发布</button>
+  </view>
+
+  <view class="section-title">我的发布</view>
+  <view wx:if="{{items.length === 0}}" class="empty">你还没有发布过线索</view>
+  <view wx:for="{{items}}" wx:key="_id" class="card mine-card" bindtap="goDetail" data-id="{{item._id}}">
+    <view>
+      <text class="title">{{item.title}}</text>
+      <text class="meta">{{item.status === 'returned' ? '已回家' : '寻找中'}} · {{item.category}}{{item.locationName ? ' · ' + item.locationName : ''}}</text>
+    </view>
+    <button
+      wx:if="{{item.status === 'active'}}"
+      class="small-action"
+      catchtap="markReturned"
+      data-id="{{item._id}}"
+    >已回家</button>
+    <button
+      wx:else
+      class="small-action secondary"
+      catchtap="undoReturned"
+      data-id="{{item._id}}"
+    >撤回</button>
+  </view>
+</view>

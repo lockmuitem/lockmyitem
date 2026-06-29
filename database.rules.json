@@ -1,0 +1,12 @@
+{
+  "readme": "Recommended cloud database permissions: keep writes behind cloud functions. Use the cloud console rule editor for final production rules.",
+  "collections": {
+    "campus_locations": "all users can read, only admins can write",
+    "items": "all users can read active/returned items, writes through cloud function",
+    "comments": "all users can read active comments, writes through cloud function",
+    "thanks": "owner-related reads only, writes through cloud function",
+    "notifications": "user can read own notifications only, writes through cloud function",
+    "reports": "admins only, writes through cloud function",
+    "users": "user can read/update own profile, writes through cloud function"
+  }
+}

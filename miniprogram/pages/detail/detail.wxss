@@ -1,0 +1,134 @@
+.detail-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 420rpx;
+  margin-bottom: 20rpx;
+  color: #0f766e;
+  background: #e7f5f2;
+  border-radius: 8rpx;
+  font-size: 42rpx;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.detail-image image {
+  width: 100%;
+  height: 100%;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.title {
+  font-size: 38rpx;
+  font-weight: 800;
+}
+
+.type-pill {
+  flex: 0 0 auto;
+  padding: 8rpx 14rpx;
+  color: #8a5a00;
+  background: #fff4cc;
+  border-radius: 6rpx;
+  font-size: 24rpx;
+}
+
+.desc {
+  display: block;
+  margin: 18rpx 0;
+  color: #475467;
+  line-height: 1.55;
+}
+
+.map-preview {
+  display: grid;
+  grid-template-columns: 1fr 220rpx;
+  gap: 18rpx;
+  align-items: center;
+}
+
+.location-name {
+  display: block;
+  margin-bottom: 8rpx;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.mini-map {
+  position: relative;
+  height: 140rpx;
+  background: linear-gradient(150deg, #dff3ec, #eef2f7);
+  border-radius: 8rpx;
+}
+
+.mini-pin {
+  position: absolute;
+  width: 22rpx;
+  height: 22rpx;
+  margin-left: -11rpx;
+  margin-top: -11rpx;
+  background: #c97700;
+  border: 4rpx solid #ffffff;
+  border-radius: 50%;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+}
+
+.comment {
+  margin-bottom: 14rpx;
+  padding: 18rpx;
+  background: #ffffff;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 8rpx;
+}
+
+.comment-name {
+  display: block;
+  margin-bottom: 8rpx;
+  color: #0f766e;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.comment-content {
+  color: #172026;
+}
+
+.small {
+  padding: 28rpx;
+}
+
+.comment-box {
+  display: grid;
+  grid-template-columns: 1fr 128rpx;
+  gap: 12rpx;
+  margin-top: 24rpx;
+}
+
+.comment-box input {
+  height: 76rpx;
+  padding: 0 18rpx;
+  background: #ffffff;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 8rpx;
+}
+
+.comment-box button {
+  height: 76rpx;
+  margin: 0;
+  color: #ffffff;
+  background: #0f766e;
+  border-radius: 8rpx;
+  font-size: 26rpx;
+  line-height: 76rpx;
+}

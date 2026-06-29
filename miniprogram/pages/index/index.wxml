@@ -1,0 +1,45 @@
+<view class="page">
+  <view class="hero">
+    <view>
+      <text class="hero-title">今天也帮物品回家</text>
+      <text class="hero-subtitle">按分类或地点快速找，向下滑动查看更多线索。</text>
+    </view>
+  </view>
+
+  <scroll-view class="category-bar" scroll-x>
+    <view
+      wx:for="{{categories}}"
+      wx:key="*this"
+      class="tag {{activeCategory === item ? 'active' : ''}}"
+      bindtap="selectCategory"
+      data-category="{{item}}"
+    >{{item}}</view>
+  </scroll-view>
+
+  <view wx:if="{{items.length === 0}}" class="empty">暂时没有匹配的物品</view>
+
+  <view wx:for="{{items}}" wx:key="_id" class="item-card" bindtap="goDetail" data-id="{{item._id}}">
+    <view class="image-box">
+      <image wx:if="{{item.thumbUrl}}" src="{{item.thumbUrl}}" mode="aspectFill" />
+      <text wx:else>{{item.category}}</text>
+    </view>
+    <view class="item-main">
+      <view class="item-head">
+        <text class="item-title">{{item.title}}</text>
+        <text class="type-pill">{{item.type === 'lost' ? '寻物' : '招领'}}</text>
+      </view>
+      <text class="item-desc">{{item.description}}</text>
+      <view class="item-meta" wx:if="{{item.locationName || item.locationDetail}}">
+        <text>{{item.locationName}}</text>
+      </view>
+      <view>
+        <text class="tag">{{item.category}}</text>
+        <text wx:for="{{item.aiTags}}" wx:key="*this" class="tag light">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="publish-fab" bindtap="startPublish">
+    <text class="plus">+</text>
+  </view>
+</view>

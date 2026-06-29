@@ -1,0 +1,132 @@
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8rpx;
+  padding: 6rpx;
+  background: #eef2f5;
+  border-radius: 8rpx;
+}
+
+.segmented view {
+  height: 64rpx;
+  color: #475467;
+  border-radius: 6rpx;
+  text-align: center;
+  line-height: 64rpx;
+}
+
+.segmented .active {
+  color: #0f766e;
+  background: #ffffff;
+  font-weight: 700;
+}
+
+.image-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 280rpx;
+  margin: 24rpx 0;
+  color: #0f766e;
+  background: #e7f5f2;
+  border-radius: 8rpx;
+  font-size: 30rpx;
+}
+
+.image-picker image {
+  width: 100%;
+  height: 100%;
+  border-radius: 8rpx;
+}
+
+.field {
+  width: 100%;
+  min-height: 82rpx;
+  margin-bottom: 18rpx;
+  padding: 0 20rpx;
+  background: #f8fafb;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+}
+
+.textarea {
+  height: 150rpx;
+  padding-top: 18rpx;
+}
+
+.row-label {
+  margin: 18rpx 0 12rpx;
+  color: #111827;
+  font-weight: 700;
+}
+
+.ai-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+  padding: 14rpx 18rpx;
+  color: #0f766e;
+  background: #e7f5f2;
+  border-radius: 8rpx;
+}
+
+.ai-result button,
+.clear-location {
+  width: auto;
+  height: 54rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  color: #0f766e;
+  background: #ffffff;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 54rpx;
+}
+
+.category-bar {
+  white-space: nowrap;
+}
+
+.clear-location {
+  margin-bottom: 14rpx;
+  background: #e7f5f2;
+}
+
+.location-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  margin-bottom: 18rpx;
+}
+
+.location-option {
+  padding: 18rpx;
+  background: #f8fafb;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 8rpx;
+}
+
+.location-option text {
+  display: block;
+}
+
+.location-option text:last-child {
+  margin-top: 6rpx;
+  color: #6b7280;
+  font-size: 22rpx;
+}
+
+.location-option.active {
+  color: #0f766e;
+  background: #e7f5f2;
+  border-color: #0f766e;
+}
+
+.submit {
+  width: 100%;
+  margin-top: 14rpx;
+}
