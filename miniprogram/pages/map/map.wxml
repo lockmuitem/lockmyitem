@@ -1,1 +1,46 @@
-<web-view src="{{officialMapUrl}}"></web-view>
+<view class="page">
+  <view class="hero lost-hero">
+    <view>
+      <text class="hero-title">寻物</text>
+      <text class="hero-subtitle">发布和查看同学正在寻找的物品。</text>
+    </view>
+    <button class="hero-action" bindtap="startPublish">发布寻物</button>
+  </view>
+
+  <scroll-view class="category-bar" scroll-x>
+    <view
+      wx:for="{{categories}}"
+      wx:key="*this"
+      class="tag {{activeCategory === item ? 'active' : ''}}"
+      bindtap="selectCategory"
+      data-category="{{item}}"
+    >{{item}}</view>
+  </scroll-view>
+
+  <view wx:if="{{items.length === 0}}" class="empty">暂时没有寻物信息</view>
+
+  <view wx:for="{{items}}" wx:key="_id" class="item-card" bindtap="goDetail" data-id="{{item._id}}">
+    <view class="image-box lost">
+      <image wx:if="{{item.thumbUrl}}" src="{{item.thumbUrl}}" mode="aspectFill" />
+      <text wx:else>{{item.category}}</text>
+    </view>
+    <view class="item-main">
+      <view class="item-head">
+        <text class="item-title">{{item.title}}</text>
+        <text class="type-pill lost">寻物</text>
+      </view>
+      <text class="item-desc">{{item.description}}</text>
+      <view class="item-meta" wx:if="{{item.locationName || item.locationDetail}}">
+        <text>{{item.locationName}}</text>
+      </view>
+      <view>
+        <text class="tag">{{item.category}}</text>
+        <text wx:for="{{item.aiTags}}" wx:key="*this" class="tag light">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="publish-fab lost" bindtap="startPublish">
+    <text class="plus">+</text>
+  </view>
+</view>

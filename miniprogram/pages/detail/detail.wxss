@@ -39,6 +39,11 @@
   font-size: 24rpx;
 }
 
+.type-pill.lost {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
 .desc {
   display: block;
   margin: 18rpx 0;
@@ -46,11 +51,15 @@
   line-height: 1.55;
 }
 
-.map-preview {
-  display: grid;
-  grid-template-columns: 1fr 220rpx;
+.location-card {
+  overflow: hidden;
+}
+
+.location-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 18rpx;
-  align-items: center;
 }
 
 .location-name {
@@ -60,22 +69,59 @@
   font-weight: 700;
 }
 
-.mini-map {
-  position: relative;
-  height: 140rpx;
-  background: linear-gradient(150deg, #dff3ec, #eef2f7);
-  border-radius: 8rpx;
+.location-badge {
+  flex: 0 0 auto;
+  padding: 8rpx 14rpx;
+  color: #0f766e;
+  background: #e7f5f2;
+  border-radius: 6rpx;
+  font-size: 24rpx;
 }
 
-.mini-pin {
-  position: absolute;
-  width: 22rpx;
-  height: 22rpx;
-  margin-left: -11rpx;
-  margin-top: -11rpx;
-  background: #c97700;
-  border: 4rpx solid #ffffff;
-  border-radius: 50%;
+.location-guide {
+  margin-top: 18rpx;
+  padding: 16rpx 18rpx;
+  color: #344054;
+  background: #f8fafb;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 8rpx;
+  line-height: 1.45;
+}
+
+.nearby-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 16rpx;
+}
+
+.nearby-label {
+  color: #667085;
+  font-size: 24rpx;
+}
+
+.nearby-pill {
+  padding: 8rpx 12rpx;
+  color: #475467;
+  background: #eef2f5;
+  border-radius: 6rpx;
+  font-size: 22rpx;
+}
+
+.location-map {
+  width: 100%;
+  height: 360rpx;
+  margin-top: 18rpx;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.map-note {
+  display: block;
+  margin-top: 12rpx;
+  color: #667085;
+  font-size: 22rpx;
 }
 
 .action-grid {

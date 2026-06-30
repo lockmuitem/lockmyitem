@@ -10,7 +10,7 @@
     "pages/official-map/official-map"
   ],
   "window": {
-    "navigationBarTitleText": "shanghaitech失物招领",
+    "navigationBarTitleText": "上科大失物招领",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f6f7f9"
@@ -23,11 +23,11 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "查找"
+        "text": "失物招领"
       },
       {
         "pagePath": "pages/map/map",
-        "text": "地图"
+        "text": "寻物"
       },
       {
         "pagePath": "pages/found/found",
@@ -39,6 +39,14 @@
       }
     ]
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于自动定位到上海科技大学校内地点，帮助快速填写失物或寻物位置"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ],
   "sitemapLocation": "sitemap.json",
   "style": "v2"
 }

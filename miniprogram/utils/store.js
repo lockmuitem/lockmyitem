@@ -1,8 +1,20 @@
 const { LOCATIONS, searchLocations } = require('./locations');
 const { classifyByText } = require('./classifier');
+const { extractItemFeatures, scoreFeatureMatch } = require('./matcher');
 const { BAD_WORDS } = require('./constants');
 
-const KEY = 'lost_found_state_v1';
+const KEY_V1 = 'lost_found_state_v1';
+const KEY = 'lost_found_state_v2';
+
+const LOCATION_ID_ALIASES = {
+  lib: 'library',
+  dining: 'silk-road-dining',
+  'dining-1': 'silk-road-dining',
+  'dining-2': 'shangke-food-court-1f',
+  'dining-3': 'magnolia-dining',
+  gym: 'athletic-center',
+  gate: 'south-gate'
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -15,6 +27,28 @@ function id(prefix) {
 function createSeedState() {
   const items = [
     {
+      _id: 'item_umbrella_found_1',
+      type: 'found',
+      title: '黑色折叠伞，带红色钥匙扣',
+      description: '在丝路餐厅门口捡到，一把黑色雨伞，伞柄上有红色钥匙扣。',
+      category: '雨伞',
+      aiTags: ['雨伞', '黑色', '红色钥匙扣'],
+      imageUrls: [],
+      thumbUrl: '',
+      locationId: 'silk-road-dining',
+      locationName: '丝路餐厅（一号食堂）',
+      locationDetail: '',
+      mapX: 73,
+      mapY: 49,
+      latitude: 31.17955,
+      longitude: 121.59265,
+      status: 'active',
+      ownerOpenid: 'demo_owner_umbrella',
+      ownerName: '食堂门口同学',
+      createdAt: '2026-06-28T13:10:00.000Z',
+      updatedAt: '2026-06-28T13:10:00.000Z'
+    },
+    {
       _id: 'item_card_1',
       type: 'found',
       title: '蓝色校园卡',
@@ -23,11 +57,13 @@ function createSeedState() {
       aiTags: ['卡片', '校园卡'],
       imageUrls: [],
       thumbUrl: '',
-      locationId: 'lib',
+      locationId: 'library',
       locationName: '图书馆',
       locationDetail: '',
       mapX: 54,
       mapY: 39,
+      latitude: 31.1802,
+      longitude: 121.5898,
       status: 'active',
       ownerOpenid: 'demo_owner',
       ownerName: '热心同学',
@@ -38,16 +74,18 @@ function createSeedState() {
       _id: 'item_umbrella_1',
       type: 'lost',
       title: '黑色折叠伞',
-      description: '可能落在学生食堂一楼。',
+      description: '可能落在学生食堂一楼，伞柄上有银色贴纸。',
       category: '雨伞',
       aiTags: ['雨伞'],
       imageUrls: [],
       thumbUrl: '',
-      locationId: 'dining',
-      locationName: '学生食堂',
+      locationId: 'silk-road-dining',
+      locationName: '丝路餐厅',
       locationDetail: '',
       mapX: 43,
       mapY: 58,
+      latitude: 31.1788,
+      longitude: 121.5897,
       status: 'active',
       ownerOpenid: 'demo_user_2',
       ownerName: '赶课人',
@@ -63,11 +101,13 @@ function createSeedState() {
       aiTags: ['水杯', '保温杯'],
       imageUrls: [],
       thumbUrl: '',
-      locationId: 'gym',
+      locationId: 'athletic-center',
       locationName: '体育馆',
       locationDetail: '',
       mapX: 72,
       mapY: 47,
+      latitude: 31.1792,
+      longitude: 121.5926,
       status: 'returned',
       ownerOpenid: 'demo_user_3',
       ownerName: '体育馆值日生',
@@ -81,7 +121,8 @@ function createSeedState() {
     currentUser: {
       openid: 'local_demo_openid',
       nickName: '微信用户',
-      avatarUrl: ''
+      avatarUrl: '',
+      email: ''
     },
     items,
     comments: [
@@ -101,7 +142,7 @@ function createSeedState() {
         _id: 'notice_1',
         userOpenid: 'local_demo_openid',
         type: 'system',
-        content: '欢迎来到上科大失物招领，先从地图或分类开始找找看。',
+        content: '欢迎来到上科大失物招领，先从失物招领或寻物板块开始看看。',
         read: false,
         createdAt: nowIso()
       }
@@ -112,7 +153,80 @@ function createSeedState() {
 }
 
 function getState() {
-  return wx.getStorageSync(KEY) || createSeedState();
+  const state = loadState();
+  let changed = false;
+  state.items = (state.items || []).map((item) => {
+      const location = findLocation(item.locationId);
+    const matchFeatures = item.matchFeatures || extractItemFeatures(item);
+    if (!location) return item;
+    if (
+      item.latitude
+      && item.longitude
+      && item.locationId === location._id
+      && item.locationArea
+      && item.locationGuide
+      && item.locationNearby
+      && item.matchFeatures
+      && Math.abs(item.latitude - location.latitude) < 0.00001
+      && Math.abs(item.longitude - location.longitude) < 0.00001
+    ) return item;
+    changed = true;
+    return {
+      ...item,
+      locationId: location._id,
+    locationName: item.locationName || location.name,
+      locationArea: item.locationArea || location.area,
+      locationNearby: item.locationNearby || location.nearby || [],
+      locationGuide: item.locationGuide || location.detail || '',
+      matchFeatures,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      mapX: item.mapX || location.mapX,
+      mapY: item.mapY || location.mapY
+    };
+  });
+  if (changed) setState(state);
+  return state;
+}
+
+function loadState() {
+  const current = wx.getStorageSync(KEY);
+  if (current) return current;
+
+  const previous = wx.getStorageSync(KEY_V1);
+  if (previous) {
+    const migrated = migrateState(previous);
+    setState(migrated);
+    return migrated;
+  }
+
+  return createSeedState();
+}
+
+function migrateState(previous) {
+  const seed = createSeedState();
+  return {
+    ...seed,
+    ...previous,
+    currentUser: {
+      ...seed.currentUser,
+      ...(previous.currentUser || {}),
+      email: (previous.currentUser && previous.currentUser.email) || ''
+    },
+    items: previous.items || [],
+    comments: previous.comments || [],
+    thanks: previous.thanks || [],
+    notifications: previous.notifications || [],
+    reports: previous.reports || [],
+    campus_locations: LOCATIONS,
+    migratedFrom: KEY_V1,
+    migratedAt: nowIso()
+  };
+}
+
+function findLocation(locationId) {
+  const nextId = LOCATION_ID_ALIASES[locationId] || locationId;
+  return LOCATIONS.find((entry) => entry._id === nextId);
 }
 
 function setState(nextState) {
@@ -121,9 +235,7 @@ function setState(nextState) {
 }
 
 function ensureSeedData() {
-  if (!wx.getStorageSync(KEY)) {
-    setState(createSeedState());
-  }
+  getState();
 }
 
 function login() {
@@ -135,12 +247,30 @@ function login() {
   return state.currentUser;
 }
 
+function updateUserProfile(profile = {}) {
+  const state = getState();
+  const user = login();
+  const email = (profile.email || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('请输入有效邮箱');
+  }
+  state.currentUser = {
+    ...user,
+    nickName: (profile.nickName || user.nickName || '微信用户').trim(),
+    email,
+    updatedAt: nowIso()
+  };
+  setState(state);
+  return state.currentUser;
+}
+
 function listItems(filters = {}) {
   const state = getState();
   const status = filters.status || 'active';
   const category = filters.category || '全部';
   return state.items
     .filter((item) => item.status === status)
+    .filter((item) => !filters.type || item.type === filters.type)
     .filter((item) => category === '全部' || item.category === category)
     .filter((item) => !filters.locationId || item.locationId === filters.locationId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -158,8 +288,10 @@ function getItemDetail(itemId) {
 function createItem(payload) {
   const state = getState();
   const user = login();
-  const location = LOCATIONS.find((entry) => entry._id === payload.locationId);
-  const classification = payload.category ? { category: payload.category, aiTags: payload.aiTags || [] } : classifyByText(`${payload.title} ${payload.description}`);
+  const location = findLocation(payload.locationId);
+  const classification = payload.category
+    ? { category: payload.category, aiTags: payload.aiTags || [] }
+    : classifyByText(`${payload.title} ${payload.description || ''}`);
   const title = (payload.title || '').trim() || classification.category || '未命名物品';
   const item = {
     _id: id('item'),
@@ -170,20 +302,72 @@ function createItem(payload) {
     aiTags: classification.aiTags,
     imageUrls: payload.imageUrls || [],
     thumbUrl: (payload.imageUrls || [])[0] || '',
+    visualDescription: payload.visualDescription || '',
+    yoloObjects: payload.yoloObjects || [],
+    semanticTags: payload.semanticTags || [],
+    imageEmbedding: payload.imageEmbedding || [],
+    semanticEmbedding: payload.semanticEmbedding || [],
     locationId: location ? location._id : '',
     locationName: location ? location.name : '',
-    locationDetail: '',
+    locationArea: location ? location.area : '',
+    locationNearby: location ? location.nearby || [] : [],
+    locationGuide: location ? location.detail || '' : '',
+    locationDetail: payload.locationDetail || '',
     mapX: location ? location.mapX : null,
     mapY: location ? location.mapY : null,
+    latitude: location ? location.latitude : null,
+    longitude: location ? location.longitude : null,
     status: 'active',
     ownerOpenid: user.openid,
     ownerName: user.nickName,
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
+  item.matchFeatures = extractItemFeatures(item);
   state.items.unshift(item);
   setState(state);
   return item;
+}
+
+function scoreItemMatch(lostPayload, foundItem) {
+  const featureScore = scoreFeatureMatch(lostPayload, foundItem);
+  let score = featureScore.similarity;
+
+  if (lostPayload.locationId && foundItem.locationId === (LOCATION_ID_ALIASES[lostPayload.locationId] || lostPayload.locationId)) {
+    score += 6;
+  } else if (lostPayload.locationId && foundItem.locationId) {
+    const lostLocation = findLocation(lostPayload.locationId);
+    const foundLocation = findLocation(foundItem.locationId);
+    if (lostLocation && foundLocation) {
+      const dLat = lostLocation.latitude - foundLocation.latitude;
+      const dLng = lostLocation.longitude - foundLocation.longitude;
+      if (Math.sqrt(dLat * dLat + dLng * dLng) < 0.0012) score += 5;
+    }
+  }
+
+  return {
+    similarity: Math.min(score, 98),
+    reasons: featureScore.reasons
+  };
+}
+
+function findPotentialMatches(payload, limit = 3) {
+  if ((payload.type || 'found') !== 'lost') return [];
+  const state = getState();
+  return state.items
+    .filter((item) => item.type === 'found' && item.status === 'active')
+    .map((item) => {
+      const result = scoreItemMatch(payload, item);
+      return {
+        ...item,
+        similarity: result.similarity,
+        matchReasons: result.reasons,
+        matchReasonText: result.reasons.join('，')
+      };
+    })
+    .filter((item) => item.similarity >= 58)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit);
 }
 
 function hasBadWords(content) {
@@ -314,6 +498,7 @@ function listMyItems() {
 module.exports = {
   ensureSeedData,
   login,
+  updateUserProfile,
   listItems,
   getItemDetail,
   createItem,
@@ -324,6 +509,7 @@ module.exports = {
   reportContent,
   listNotifications,
   listMyItems,
+  findPotentialMatches,
   searchLocations,
   classifyByText
 };

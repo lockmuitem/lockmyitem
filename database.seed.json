@@ -1,14 +1,711 @@
 {
   "campus_locations": [
-    { "_id": "lib", "name": "图书馆", "aliases": ["library"], "area": "学习区", "mapX": 54, "mapY": 39, "sortOrder": 1, "enabled": true },
-    { "_id": "sist", "name": "信息学院楼", "aliases": ["SIST", "信息学院"], "area": "教学科研区", "mapX": 63, "mapY": 35, "sortOrder": 2, "enabled": true },
-    { "_id": "spst", "name": "物质学院楼", "aliases": ["SPST", "物质学院"], "area": "教学科研区", "mapX": 48, "mapY": 31, "sortOrder": 3, "enabled": true },
-    { "_id": "slst", "name": "生命学院楼", "aliases": ["SLST", "生命学院"], "area": "教学科研区", "mapX": 37, "mapY": 36, "sortOrder": 4, "enabled": true },
-    { "_id": "dining", "name": "学生食堂", "aliases": ["食堂", "餐厅"], "area": "生活区", "mapX": 43, "mapY": 58, "sortOrder": 5, "enabled": true },
-    { "_id": "dorm-east", "name": "东区宿舍", "aliases": ["宿舍", "东宿"], "area": "生活区", "mapX": 67, "mapY": 62, "sortOrder": 6, "enabled": true },
-    { "_id": "dorm-west", "name": "西区宿舍", "aliases": ["西宿"], "area": "生活区", "mapX": 24, "mapY": 61, "sortOrder": 7, "enabled": true },
-    { "_id": "gym", "name": "体育馆", "aliases": ["运动场", "健身"], "area": "运动区", "mapX": 72, "mapY": 47, "sortOrder": 8, "enabled": true },
-    { "_id": "admin", "name": "行政中心", "aliases": ["行政楼"], "area": "行政区", "mapX": 30, "mapY": 42, "sortOrder": 9, "enabled": true },
-    { "_id": "gate", "name": "校门口", "aliases": ["门口", "入口"], "area": "公共区", "mapX": 14, "mapY": 76, "sortOrder": 10, "enabled": true }
+    {
+      "_id": "library",
+      "name": "图书馆",
+      "aliases": [
+        "library",
+        "图书馆",
+        "主图",
+        "阅览室",
+        "自习区"
+      ],
+      "area": "学习区",
+      "detail": "主图书馆，靠近学生公寓与白玉兰餐厅",
+      "nearby": [
+        "白玉兰一楼餐厅（三号食堂）",
+        "学生公寓7-10号楼",
+        "塔楼"
+      ],
+      "latitude": 31.1751705,
+      "longitude": 121.5965396,
+      "wgs84Latitude": 31.1773981,
+      "wgs84Longitude": 121.5923408,
+      "mapX": 68,
+      "mapY": 75,
+      "sortOrder": 1,
+      "enabled": true
+    },
+    {
+      "_id": "slst",
+      "name": "生命科学与技术学院",
+      "aliases": [
+        "SLST",
+        "生命学院",
+        "生院",
+        "生命楼"
+      ],
+      "area": "学院楼",
+      "detail": "生命科学与技术学院楼",
+      "nearby": [
+        "物质科学与技术学院",
+        "北门（海科路230号）"
+      ],
+      "latitude": 31.179574,
+      "longitude": 121.5943767,
+      "wgs84Latitude": 31.1817988,
+      "wgs84Longitude": 121.5901764,
+      "mapX": 49,
+      "mapY": 16,
+      "sortOrder": 2,
+      "enabled": true
+    },
+    {
+      "_id": "sist",
+      "name": "信息科学与技术学院",
+      "aliases": [
+        "SIST",
+        "信息学院",
+        "信院",
+        "信息楼"
+      ],
+      "area": "学院楼",
+      "detail": "信息科学与技术学院楼",
+      "nearby": [
+        "校园服务中心",
+        "学生创新中心"
+      ],
+      "latitude": 31.1781471,
+      "longitude": 121.5943527,
+      "wgs84Latitude": 31.1803726,
+      "wgs84Longitude": 121.5901525,
+      "mapX": 49,
+      "mapY": 35,
+      "sortOrder": 3,
+      "enabled": true
+    },
+    {
+      "_id": "spst",
+      "name": "物质科学与技术学院",
+      "aliases": [
+        "SPST",
+        "物质学院",
+        "物院",
+        "物质楼"
+      ],
+      "area": "学院楼",
+      "detail": "物质科学与技术学院楼",
+      "nearby": [
+        "生命科学与技术学院",
+        "免疫化学研究所"
+      ],
+      "latitude": 31.1773624,
+      "longitude": 121.5933034,
+      "wgs84Latitude": 31.1795879,
+      "wgs84Longitude": 121.5891026,
+      "mapX": 40,
+      "mapY": 46,
+      "sortOrder": 4,
+      "enabled": true
+    },
+    {
+      "_id": "sem",
+      "name": "创业与管理学院",
+      "aliases": [
+        "SEM",
+        "创管学院",
+        "创业管理学院"
+      ],
+      "area": "学院楼",
+      "detail": "创业与管理学院楼",
+      "nearby": [
+        "教学中心",
+        "学生创新中心"
+      ],
+      "latitude": 31.1764972,
+      "longitude": 121.5948062,
+      "wgs84Latitude": 31.1787237,
+      "wgs84Longitude": 121.5906064,
+      "mapX": 53,
+      "mapY": 57,
+      "sortOrder": 5,
+      "enabled": true
+    },
+    {
+      "_id": "sca",
+      "name": "创意与艺术学院",
+      "aliases": [
+        "SCA",
+        "创艺学院",
+        "艺术学院"
+      ],
+      "area": "学院楼",
+      "detail": "创意与艺术学院楼",
+      "nearby": [
+        "行政中心",
+        "物质科学与技术学院"
+      ],
+      "latitude": 31.176506,
+      "longitude": 121.5934751,
+      "wgs84Latitude": 31.178732,
+      "wgs84Longitude": 121.5892745,
+      "mapX": 41,
+      "mapY": 57,
+      "sortOrder": 6,
+      "enabled": true
+    },
+    {
+      "_id": "ihuman",
+      "name": "iHuman研究所",
+      "aliases": [
+        "iHuman",
+        "人类表型组",
+        "ihuman institute"
+      ],
+      "area": "科研机构",
+      "latitude": 31.1800187,
+      "longitude": 121.594608,
+      "wgs84Latitude": 31.1822434,
+      "wgs84Longitude": 121.5904078,
+      "mapX": 51,
+      "mapY": 10,
+      "sortOrder": 7,
+      "enabled": true
+    },
+    {
+      "_id": "sias",
+      "name": "免疫化学研究所",
+      "aliases": [
+        "SIAS",
+        "免疫化学",
+        "免化所"
+      ],
+      "area": "科研机构",
+      "latitude": 31.1800187,
+      "longitude": 121.594608,
+      "wgs84Latitude": 31.1822434,
+      "wgs84Longitude": 121.5904078,
+      "mapX": 51,
+      "mapY": 10,
+      "sortOrder": 8,
+      "enabled": true
+    },
+    {
+      "_id": "admin",
+      "name": "行政中心",
+      "aliases": [
+        "行政楼",
+        "行政中心"
+      ],
+      "area": "行政服务",
+      "latitude": 31.1751666,
+      "longitude": 121.5933219,
+      "wgs84Latitude": 31.1773933,
+      "wgs84Longitude": 121.5891213,
+      "mapX": 40,
+      "mapY": 75,
+      "sortOrder": 9,
+      "enabled": true
+    },
+    {
+      "_id": "teaching-center",
+      "name": "教学中心",
+      "aliases": [
+        "教学楼",
+        "Teaching Center",
+        "教室"
+      ],
+      "area": "教学区",
+      "latitude": 31.1754918,
+      "longitude": 121.595127,
+      "wgs84Latitude": 31.1777189,
+      "wgs84Longitude": 121.5909274,
+      "mapX": 55,
+      "mapY": 71,
+      "sortOrder": 10,
+      "enabled": true
+    },
+    {
+      "_id": "auditorium",
+      "name": "报告厅",
+      "aliases": [
+        "报告厅",
+        "Auditorium",
+        "会堂"
+      ],
+      "area": "公共区",
+      "latitude": 31.1759845,
+      "longitude": 121.595693,
+      "wgs84Latitude": 31.1782115,
+      "wgs84Longitude": 121.5914937,
+      "mapX": 60,
+      "mapY": 64,
+      "sortOrder": 11,
+      "enabled": true
+    },
+    {
+      "_id": "student-innovation",
+      "name": "学生创新中心",
+      "aliases": [
+        "学生创新中心",
+        "创新中心",
+        "Student Innovation Center"
+      ],
+      "area": "公共区",
+      "latitude": 31.176576,
+      "longitude": 121.5959062,
+      "wgs84Latitude": 31.1788028,
+      "wgs84Longitude": 121.591707,
+      "mapX": 62,
+      "mapY": 56,
+      "sortOrder": 12,
+      "enabled": true
+    },
+    {
+      "_id": "campus-service",
+      "name": "校园服务中心",
+      "aliases": [
+        "校园服务中心",
+        "服务中心",
+        "Campus Service Center"
+      ],
+      "area": "公共服务",
+      "latitude": 31.1775602,
+      "longitude": 121.5963353,
+      "wgs84Latitude": 31.1797866,
+      "wgs84Longitude": 121.5921362,
+      "mapX": 66,
+      "mapY": 43,
+      "sortOrder": 13,
+      "enabled": true
+    },
+    {
+      "_id": "student-center",
+      "name": "学生活动中心",
+      "aliases": [
+        "学生活动中心",
+        "学生中心",
+        "Student Center",
+        "咖啡厅"
+      ],
+      "area": "生活区",
+      "latitude": 31.1784827,
+      "longitude": 121.5979801,
+      "wgs84Latitude": 31.180709,
+      "wgs84Longitude": 121.5937817,
+      "mapX": 80,
+      "mapY": 31,
+      "sortOrder": 14,
+      "enabled": true
+    },
+    {
+      "_id": "silk-road-dining",
+      "name": "丝路餐厅（一号食堂）",
+      "aliases": [
+        "一号食堂",
+        "一食",
+        "第一食堂",
+        "食堂",
+        "餐厅",
+        "Dining Hall 1",
+        "Silk Road"
+      ],
+      "area": "餐饮",
+      "detail": "一号食堂主要餐饮点",
+      "nearby": [
+        "学生活动中心",
+        "清真餐厅",
+        "尚科美食广场1楼"
+      ],
+      "latitude": 31.1782204,
+      "longitude": 121.597193,
+      "wgs84Latitude": 31.1804466,
+      "wgs84Longitude": 121.5929943,
+      "mapX": 73,
+      "mapY": 34,
+      "sortOrder": 15,
+      "enabled": true
+    },
+    {
+      "_id": "dining-1-2f",
+      "name": "一号食堂二楼餐厅",
+      "aliases": [
+        "一号食堂二楼",
+        "一食二楼",
+        "第一食堂二楼",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "detail": "一号食堂二楼",
+      "nearby": [
+        "丝路餐厅（一号食堂）",
+        "清真餐厅"
+      ],
+      "latitude": 31.1780541,
+      "longitude": 121.5972578,
+      "wgs84Latitude": 31.1802804,
+      "wgs84Longitude": 121.5930591,
+      "mapX": 74,
+      "mapY": 37,
+      "sortOrder": 16,
+      "enabled": true
+    },
+    {
+      "_id": "shangke-food-court-1f",
+      "name": "尚科美食广场1楼",
+      "aliases": [
+        "二号食堂",
+        "二食",
+        "第二食堂",
+        "尚科美食广场",
+        "尚科餐厅",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "detail": "二号食堂一楼",
+      "nearby": [
+        "尚科美食广场2楼",
+        "西餐厅"
+      ],
+      "latitude": 31.1772656,
+      "longitude": 121.5969606,
+      "wgs84Latitude": 31.1794923,
+      "wgs84Longitude": 121.5927618,
+      "mapX": 71,
+      "mapY": 47,
+      "sortOrder": 17,
+      "enabled": true
+    },
+    {
+      "_id": "shangke-food-court-2f",
+      "name": "尚科美食广场2楼",
+      "aliases": [
+        "二号食堂二楼",
+        "二食二楼",
+        "尚科美食广场",
+        "尚科餐厅",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "detail": "二号食堂二楼",
+      "nearby": [
+        "尚科美食广场1楼",
+        "西餐厅"
+      ],
+      "latitude": 31.1772464,
+      "longitude": 121.5969461,
+      "wgs84Latitude": 31.1794731,
+      "wgs84Longitude": 121.5927473,
+      "mapX": 71,
+      "mapY": 47,
+      "sortOrder": 18,
+      "enabled": true
+    },
+    {
+      "_id": "western-dining",
+      "name": "西餐厅",
+      "aliases": [
+        "西餐厅",
+        "西餐",
+        "Western Dining",
+        "二号食堂",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "latitude": 31.1774814,
+      "longitude": 121.5970287,
+      "wgs84Latitude": 31.179708,
+      "wgs84Longitude": 121.5928299,
+      "mapX": 72,
+      "mapY": 44,
+      "sortOrder": 19,
+      "enabled": true
+    },
+    {
+      "_id": "magnolia-dining",
+      "name": "白玉兰一楼餐厅（三号食堂）",
+      "aliases": [
+        "白玉兰餐厅",
+        "白玉兰一楼",
+        "三号食堂",
+        "三食堂",
+        "3食堂",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "detail": "白玉兰一楼餐厅，常称三号食堂",
+      "nearby": [
+        "图书馆",
+        "塔楼",
+        "学生公寓7-10号楼"
+      ],
+      "latitude": 31.1763205,
+      "longitude": 121.596473,
+      "wgs84Latitude": 31.1785475,
+      "wgs84Longitude": 121.5922741,
+      "mapX": 67,
+      "mapY": 60,
+      "sortOrder": 20,
+      "enabled": true
+    },
+    {
+      "_id": "halal-dining",
+      "name": "清真餐厅",
+      "aliases": [
+        "清真",
+        "清真食堂",
+        "清真餐厅",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "latitude": 31.1762173,
+      "longitude": 121.5964511,
+      "wgs84Latitude": 31.1784444,
+      "wgs84Longitude": 121.5922522,
+      "mapX": 67,
+      "mapY": 61,
+      "sortOrder": 21,
+      "enabled": true
+    },
+    {
+      "_id": "kfc",
+      "name": "KFC（上科大店）",
+      "aliases": [
+        "KFC",
+        "肯德基",
+        "食堂",
+        "餐厅"
+      ],
+      "area": "餐饮",
+      "latitude": 31.177527,
+      "longitude": 121.5970449,
+      "wgs84Latitude": 31.1797536,
+      "wgs84Longitude": 121.5928461,
+      "mapX": 72,
+      "mapY": 44,
+      "sortOrder": 22,
+      "enabled": true
+    },
+    {
+      "_id": "dorm-1-6",
+      "name": "学生公寓1-6号楼",
+      "aliases": [
+        "宿舍",
+        "学生公寓",
+        "1号楼",
+        "2号楼",
+        "3号楼",
+        "4号楼",
+        "5号楼",
+        "6号楼"
+      ],
+      "area": "住宿区",
+      "latitude": 31.1770549,
+      "longitude": 121.59817,
+      "wgs84Latitude": 31.1792819,
+      "wgs84Longitude": 121.5939718,
+      "mapX": 82,
+      "mapY": 50,
+      "sortOrder": 23,
+      "enabled": true
+    },
+    {
+      "_id": "dorm-7-10",
+      "name": "学生公寓7-10号楼",
+      "aliases": [
+        "宿舍",
+        "学生公寓",
+        "7号楼",
+        "8号楼",
+        "9号楼",
+        "10号楼"
+      ],
+      "area": "住宿区",
+      "latitude": 31.1758417,
+      "longitude": 121.5977859,
+      "wgs84Latitude": 31.1780693,
+      "wgs84Longitude": 121.5935876,
+      "mapX": 78,
+      "mapY": 66,
+      "sortOrder": 24,
+      "enabled": true
+    },
+    {
+      "_id": "faculty-village",
+      "name": "教师公寓",
+      "aliases": [
+        "教师公寓",
+        "Faculty Village",
+        "专家公寓"
+      ],
+      "area": "住宿区",
+      "latitude": 31.1752364,
+      "longitude": 121.5976715,
+      "wgs84Latitude": 31.1774642,
+      "wgs84Longitude": 121.5934732,
+      "mapX": 77,
+      "mapY": 74,
+      "sortOrder": 25,
+      "enabled": true
+    },
+    {
+      "_id": "athletic-center",
+      "name": "体育馆",
+      "aliases": [
+        "体育馆",
+        "健身",
+        "Athletic Center"
+      ],
+      "area": "运动区",
+      "latitude": 31.1764398,
+      "longitude": 121.5980081,
+      "wgs84Latitude": 31.1786671,
+      "wgs84Longitude": 121.5938098,
+      "mapX": 80,
+      "mapY": 58,
+      "sortOrder": 26,
+      "enabled": true
+    },
+    {
+      "_id": "stadium",
+      "name": "体育场",
+      "aliases": [
+        "体育场",
+        "操场",
+        "田径场",
+        "足球场",
+        "Stadium"
+      ],
+      "area": "运动区",
+      "latitude": 31.1764398,
+      "longitude": 121.5980081,
+      "wgs84Latitude": 31.1786671,
+      "wgs84Longitude": 121.5938098,
+      "mapX": 80,
+      "mapY": 58,
+      "sortOrder": 27,
+      "enabled": true
+    },
+    {
+      "_id": "swimming",
+      "name": "游泳馆",
+      "aliases": [
+        "游泳馆",
+        "Swimming Facilities",
+        "泳池"
+      ],
+      "area": "运动区",
+      "latitude": 31.1797619,
+      "longitude": 121.5970589,
+      "wgs84Latitude": 31.1819873,
+      "wgs84Longitude": 121.59286,
+      "mapX": 72,
+      "mapY": 14,
+      "sortOrder": 28,
+      "enabled": true
+    },
+    {
+      "_id": "conference-center",
+      "name": "会议中心",
+      "aliases": [
+        "会议中心",
+        "Conference Center"
+      ],
+      "area": "公共区",
+      "latitude": 31.1799772,
+      "longitude": 121.5975729,
+      "wgs84Latitude": 31.1822026,
+      "wgs84Longitude": 121.5933742,
+      "mapX": 77,
+      "mapY": 11,
+      "sortOrder": 29,
+      "enabled": true
+    },
+    {
+      "_id": "tower",
+      "name": "塔楼",
+      "aliases": [
+        "塔楼",
+        "Tower"
+      ],
+      "area": "公共区",
+      "latitude": 31.1742711,
+      "longitude": 121.5962076,
+      "wgs84Latitude": 31.1764991,
+      "wgs84Longitude": 121.5920087,
+      "mapX": 65,
+      "mapY": 87,
+      "sortOrder": 30,
+      "enabled": true
+    },
+    {
+      "_id": "north-gate",
+      "name": "北门（海科路230号）",
+      "aliases": [
+        "北门",
+        "海科路230号",
+        "海科路门"
+      ],
+      "area": "出入口",
+      "latitude": 31.1806565,
+      "longitude": 121.5955788,
+      "wgs84Latitude": 31.1828811,
+      "wgs84Longitude": 121.5913791,
+      "mapX": 59,
+      "mapY": 2,
+      "sortOrder": 31,
+      "enabled": true
+    },
+    {
+      "_id": "east-gate",
+      "name": "东门（中科路1号）",
+      "aliases": [
+        "东门",
+        "中科路1号",
+        "中科路门"
+      ],
+      "area": "出入口",
+      "latitude": 31.1787942,
+      "longitude": 121.5994198,
+      "wgs84Latitude": 31.1810205,
+      "wgs84Longitude": 121.5952219,
+      "mapX": 93,
+      "mapY": 27,
+      "sortOrder": 32,
+      "enabled": true
+    },
+    {
+      "_id": "south-gate",
+      "name": "南门（华夏中路393号）",
+      "aliases": [
+        "南门",
+        "华夏中路393号",
+        "华夏门",
+        "校门口"
+      ],
+      "area": "出入口",
+      "latitude": 31.173724,
+      "longitude": 121.594676,
+      "wgs84Latitude": 31.1759519,
+      "wgs84Longitude": 121.5904763,
+      "mapX": 52,
+      "mapY": 95,
+      "sortOrder": 33,
+      "enabled": true
+    },
+    {
+      "_id": "west-gate",
+      "name": "西门（集慧路249号）",
+      "aliases": [
+        "西门",
+        "集慧路249号",
+        "集慧路门"
+      ],
+      "area": "出入口",
+      "latitude": 31.1761764,
+      "longitude": 121.5895822,
+      "wgs84Latitude": 31.1784008,
+      "wgs84Longitude": 121.5853787,
+      "mapX": 8,
+      "mapY": 62,
+      "sortOrder": 34,
+      "enabled": true
+    }
   ]
 }

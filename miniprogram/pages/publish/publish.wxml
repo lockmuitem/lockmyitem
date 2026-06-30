@@ -1,5 +1,5 @@
 <view class="page">
-  <view class="section-title">补充线索</view>
+  <view class="section-title">{{form.type === 'lost' ? '发布寻物' : '发布招领'}}</view>
 
   <view class="card">
     <view class="segmented">
@@ -11,13 +11,15 @@
       <image wx:if="{{form.imageUrls.length}}" src="{{form.imageUrls[0]}}" mode="aspectFill" />
       <text wx:else>上传图片，可留空</text>
     </button>
+    <view wx:if="{{classifying}}" class="model-status">正在调用混元模型识别图片...</view>
+    <view wx:if="{{form.visualDescription}}" class="model-desc">{{form.visualDescription}}</view>
 
     <input class="field" placeholder="物品标题，可不填" value="{{form.title}}" bindinput="onInput" data-field="title" />
     <textarea class="field textarea" placeholder="补充描述，可不填" value="{{form.description}}" bindinput="onInput" data-field="description" />
 
-    <view class="row-label">自动识别分类，可不选</view>
+    <view class="row-label">分类，可自动识别或手动选择</view>
     <view wx:if="{{form.category}}" class="ai-result">
-      <text>当前识别：{{form.category}}</text>
+      <text>当前分类：{{form.category}}</text>
       <button bindtap="clearCategory">清除</button>
     </view>
     <scroll-view scroll-x class="category-bar">
@@ -31,9 +33,27 @@
       >{{item}}</view>
     </scroll-view>
 
-    <view class="row-label">地点，可不选</view>
-    <input class="field" placeholder="搜索地点，如 图书馆、食堂、宿舍" value="{{locationKeyword}}" bindinput="searchLocation" />
+    <view class="location-head">
+      <view>
+        <view class="row-label">地点</view>
+        <text class="location-tip">{{locationTip}}</text>
+      </view>
+      <button class="locate-button" loading="{{locating}}" bindtap="detectCampusLocation">定位</button>
+    </view>
+    <input class="field" placeholder="搜索上科大校内地点，如 图书馆、食堂、宿舍" value="{{locationKeyword}}" bindinput="searchLocation" />
     <button wx:if="{{form.locationId}}" class="clear-location" bindtap="clearLocation">不选择地点</button>
+    <view wx:if="{{locationCandidates.length > 1}}" class="candidate-list">
+      <view
+        wx:for="{{locationCandidates}}"
+        wx:key="_id"
+        class="candidate {{form.locationId === item._id ? 'active' : ''}}"
+        bindtap="selectLocation"
+        data-id="{{item._id}}"
+      >
+        <text>{{item.name}}</text>
+        <text>{{item.distanceText}}</text>
+      </view>
+    </view>
     <view class="location-list">
       <view
         wx:for="{{locations}}"
@@ -44,6 +64,24 @@
       >
         <text>{{item.name}}</text>
         <text>{{item.area}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{potentialMatches.length}}" class="match-panel">
+      <view class="match-title">可能是你的物品</view>
+      <view
+        wx:for="{{potentialMatches}}"
+        wx:key="_id"
+        class="match-item"
+        bindtap="goMatchDetail"
+        data-id="{{item._id}}"
+      >
+        <view>
+          <text class="match-name">{{item.title}}</text>
+          <text class="match-meta">{{item.locationName}} · 相似度 {{item.similarity}}%</text>
+          <text wx:if="{{item.matchReasonText}}" class="match-reason">{{item.matchReasonText}}</text>
+        </view>
+        <text class="match-pill">查看</text>
       </view>
     </view>
 

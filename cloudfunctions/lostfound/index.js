@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const fetch = require('node-fetch');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -28,6 +29,12 @@ const CATEGORY_KEYWORDS = {
 
 const BAD_WORDS = ['辱骂', '广告', '诈骗', '加群'];
 
+const HUNYUAN_CONFIG = {
+  apiKey: process.env.HUNYUAN_API_KEY || process.env.MODEL_API_KEY || '',
+  baseUrl: (process.env.HUNYUAN_BASE_URL || 'https://api.hunyuan.cloud.tencent.com/v1').replace(/\/$/, ''),
+  model: process.env.HUNYUAN_MODEL || 'hunyuan-vision'
+};
+
 function ok(data = {}) {
   return { ok: true, data };
 }
@@ -50,6 +57,88 @@ function classifyByText(text = '') {
     }
   }
   return { category: '其他', aiTags: ['待确认'], confidence: 0 };
+}
+
+function unique(list) {
+  return Array.from(new Set((list || []).filter(Boolean)));
+}
+
+function parseJsonContent(content = '') {
+  const cleaned = String(content)
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('混元未返回可解析的 JSON');
+  return JSON.parse(match[0]);
+}
+
+function normalizeHunyuanResult(result = {}) {
+  return {
+    description: result.description || result.caption || result.visualDescription || '',
+    category: result.category || '',
+    tags: unique(result.tags || result.aiTags || result.keywords || []),
+    colors: unique(result.colors || []),
+    accessories: unique(result.accessories || []),
+    imageEmbedding: result.imageEmbedding || result.image_embedding || [],
+    semanticEmbedding: result.semanticEmbedding || result.semantic_embedding || result.embedding || []
+  };
+}
+
+async function callHunyuanVision(payload) {
+  const endpoint = `${HUNYUAN_CONFIG.baseUrl}/chat/completions`;
+  const prompt = [
+    '你是上海科技大学校园失物招领系统的图像识别助手。',
+    '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
+    '必须只返回 JSON，不要 Markdown，不要解释。',
+    'JSON 字段：description, category, tags, colors, accessories。',
+    'category 从以下中文类别中选择：证件、电子产品、书本资料、衣物、钥匙、校园卡、雨伞、水杯、其他。',
+    'tags/colors/accessories 必须是中文字符串数组。',
+    `用户补充描述：${payload.hint || '无'}`
+  ].join('\n');
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${HUNYUAN_CONFIG.apiKey}`,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: HUNYUAN_CONFIG.model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: payload.imageUrl } },
+            { type: 'text', text: prompt }
+          ]
+        }
+      ],
+      temperature: 0.2
+    }),
+    timeout: 30000
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data.error && (data.error.message || data.error.code);
+    throw new Error(`混元识别失败 ${response.status}${message ? `: ${message}` : ''}`);
+  }
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  return normalizeHunyuanResult(parseJsonContent(content || ''));
+}
+
+function mapTagsToCategory(tags = [], hint = '') {
+  const source = `${tags.join(' ')} ${hint}`.toLowerCase();
+  const categories = Object.keys(CATEGORY_KEYWORDS);
+  for (let i = 0; i < categories.length; i += 1) {
+    const category = categories[i];
+    if (CATEGORY_KEYWORDS[category].some((word) => source.includes(word.toLowerCase()))) {
+      return category;
+    }
+  }
+  return '其他';
 }
 
 async function ensureUser(openid, profile = {}) {
@@ -97,9 +186,49 @@ async function listLocations(event) {
 }
 
 async function classifyImage(event) {
-  // Production hook: call Tencent Cloud/Baidu/Ali image recognition here with event.fileId.
-  // The text fallback keeps the MVP deterministic until API credentials are configured.
-  return ok(classifyByText(event.hint || ''));
+  if (!HUNYUAN_CONFIG.apiKey) {
+    return fail('请先配置 HUNYUAN_API_KEY', 'MODEL_NOT_CONFIGURED');
+  }
+  if (!event.fileId && !event.imageUrl) {
+    return fail('缺少图片 fileId 或 imageUrl');
+  }
+
+  let imageUrl = event.imageUrl || '';
+  if (!imageUrl && event.fileId) {
+    const tempResult = await cloud.getTempFileURL({ fileList: [event.fileId] });
+    const file = tempResult.fileList && tempResult.fileList[0];
+    if (!file || !file.tempFileURL) return fail('无法获取图片临时链接');
+    imageUrl = file.tempFileURL;
+  }
+
+  const payload = {
+    imageUrl,
+    fileId: event.fileId || '',
+    hint: event.hint || ''
+  };
+  const semantic = await callHunyuanVision(payload);
+  const aiTags = unique([
+    ...semantic.tags,
+    ...semantic.colors,
+    ...semantic.accessories
+  ]);
+  const category = semantic.category || mapTagsToCategory(aiTags, event.hint || semantic.description);
+  const visualDescription = semantic.description || aiTags.join('、');
+
+  return ok({
+    category,
+    aiTags,
+    yoloObjects: [],
+    semanticTags: semantic.tags,
+    visualDescription,
+    imageEmbedding: semantic.imageEmbedding,
+    semanticEmbedding: semantic.semanticEmbedding,
+    modelSources: {
+      provider: 'tencent-hunyuan',
+      baseUrl: HUNYUAN_CONFIG.baseUrl,
+      model: HUNYUAN_CONFIG.model
+    }
+  });
 }
 
 async function createItem(event, context) {
@@ -122,6 +251,11 @@ async function createItem(event, context) {
     aiTags: classification.aiTags,
     imageUrls: payload.imageUrls || [],
     thumbUrl: (payload.imageUrls || [])[0] || '',
+    visualDescription: payload.visualDescription || '',
+    yoloObjects: payload.yoloObjects || [],
+    semanticTags: payload.semanticTags || [],
+    imageEmbedding: payload.imageEmbedding || [],
+    semanticEmbedding: payload.semanticEmbedding || [],
     locationId: location ? location._id : '',
     locationName: location ? location.name : '',
     locationDetail: '',
@@ -140,6 +274,7 @@ async function createItem(event, context) {
 async function listItems(event) {
   const filters = event.filters || {};
   const query = { status: filters.status || 'active' };
+  if (filters.type) query.type = filters.type;
   if (filters.category && filters.category !== '全部') query.category = filters.category;
   if (filters.locationId) query.locationId = filters.locationId;
   const result = await db.collection(COLLECTIONS.items)

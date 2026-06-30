@@ -4,6 +4,7 @@
   "description": "Unified cloud function for ShanghaiTech lost and found miniprogram",
   "main": "index.js",
   "dependencies": {
+    "node-fetch": "^2.7.0",
     "wx-server-sdk": "latest"
   }
 }

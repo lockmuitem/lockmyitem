@@ -14,7 +14,7 @@ Page({
 
   loadItems() {
     this.setData({
-      items: listItems({ category: this.data.activeCategory, status: 'active' })
+      items: listItems({ category: this.data.activeCategory, status: 'active', type: 'found' })
     });
   },
 
@@ -23,26 +23,7 @@ Page({
   },
 
   startPublish() {
-    wx.showActionSheet({
-      itemList: ['我捡到了', '我丢了'],
-      success: (typeRes) => {
-        const type = typeRes.tapIndex === 0 ? 'found' : 'lost';
-        wx.chooseMedia({
-          count: 1,
-          mediaType: ['image'],
-          sourceType: ['album', 'camera'],
-          success: (mediaRes) => {
-            const file = mediaRes.tempFiles[0];
-            wx.navigateTo({
-              url: `/pages/publish/publish?type=${type}&image=${encodeURIComponent(file.tempFilePath)}`
-            });
-          },
-          fail: () => {
-            wx.navigateTo({ url: `/pages/publish/publish?type=${type}` });
-          }
-        });
-      }
-    });
+    wx.navigateTo({ url: '/pages/publish/publish?type=found' });
   },
 
   goDetail(event) {

@@ -1,8 +1,12 @@
-const { login, listMyItems, markReturned, undoReturned } = require('../../utils/store');
+const { login, updateUserProfile, listMyItems, markReturned, undoReturned } = require('../../utils/store');
 
 Page({
   data: {
     user: {},
+    profileForm: {
+      nickName: '',
+      email: ''
+    },
     items: []
   },
 
@@ -11,10 +15,30 @@ Page({
   },
 
   load() {
+    const user = login();
     this.setData({
-      user: login(),
+      user,
+      profileForm: {
+        nickName: user.nickName || '',
+        email: user.email || ''
+      },
       items: listMyItems()
     });
+  },
+
+  onProfileInput(event) {
+    const field = event.currentTarget.dataset.field;
+    this.setData({ [`profileForm.${field}`]: event.detail.value });
+  },
+
+  saveProfile() {
+    try {
+      const user = updateUserProfile(this.data.profileForm);
+      this.setData({ user });
+      wx.showToast({ title: '资料已保存', icon: 'success' });
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: 'none' });
+    }
   },
 
   goMessages() {

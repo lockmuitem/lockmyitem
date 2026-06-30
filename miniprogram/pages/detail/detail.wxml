@@ -7,7 +7,7 @@
   <view class="card">
     <view class="detail-head">
       <text class="title">{{item.title}}</text>
-      <text class="type-pill">{{item.type === 'lost' ? '寻物' : '招领'}}</text>
+      <text class="type-pill {{itemTypeClass}}">{{itemTypeText}}</text>
     </view>
     <text class="desc">{{item.description}}</text>
     <view>
@@ -16,20 +16,38 @@
     </view>
   </view>
 
-  <view class="card map-preview" wx:if="{{item.locationName}}">
-    <view>
-      <text class="location-name">{{item.locationName}}</text>
-      <text class="muted">校内地点</text>
+  <view class="card location-card" wx:if="{{item.locationName}}">
+    <view class="location-heading">
+      <view>
+        <text class="location-name">{{item.locationName}}</text>
+        <text class="muted">{{locationAreaText}}</text>
+      </view>
+      <text class="location-badge">校内定位</text>
     </view>
-    <view class="mini-map">
-      <view class="mini-pin" style="left: {{item.mapX}}%; top: {{item.mapY}}%;"></view>
+    <view class="location-guide" wx:if="{{item.locationGuide}}">{{item.locationGuide}}</view>
+    <view class="nearby-list" wx:if="{{hasNearby}}">
+      <text class="nearby-label">附近</text>
+      <text wx:for="{{item.locationNearby}}" wx:key="*this" class="nearby-pill">{{item}}</text>
     </view>
+    <map
+      wx:if="{{hasMapPoint}}"
+      class="location-map"
+      latitude="{{item.latitude}}"
+      longitude="{{item.longitude}}"
+      scale="{{mapScale}}"
+      markers="{{mapMarkers}}"
+      enable-zoom="{{true}}"
+      enable-scroll="{{true}}"
+      enable-rotate="{{false}}"
+      show-location="{{false}}"
+    />
+    <text class="map-note">地图为辅助定位，具体位置以上方校内建筑与附近地点为准。</text>
   </view>
 
   <view class="action-grid">
-    <button class="button-secondary" bindtap="sendThanks">感谢发帖人</button>
-    <button wx:if="{{item.status === 'active' && isMine}}" class="button-primary" bindtap="markReturned">已回家</button>
-    <button wx:if="{{item.status === 'returned' && isMine}}" class="button-secondary" bindtap="undoReturned">撤回已回家</button>
+    <button class="button-secondary" bindtap="sendThanks">感谢发布人</button>
+    <button wx:if="{{canMarkReturned}}" class="button-primary" bindtap="markReturned">已回家</button>
+    <button wx:if="{{canUndoReturned}}" class="button-secondary" bindtap="undoReturned">撤回已回家</button>
     <button class="button-danger" bindtap="reportItem">举报</button>
   </view>
 
@@ -38,7 +56,7 @@
     <text class="comment-name">{{item.authorName}}</text>
     <text class="comment-content">{{item.content}}</text>
   </view>
-  <view wx:if="{{comments.length === 0}}" class="empty small">还没有评论</view>
+  <view wx:if="{{noComments}}" class="empty small">还没有评论</view>
 
   <view class="comment-box">
     <input placeholder="写下线索或领取信息" value="{{commentText}}" bindinput="onCommentInput" />

@@ -1,9 +1,10 @@
 <view class="page">
-  <view class="hero">
+  <view class="hero found-hero">
     <view>
-      <text class="hero-title">今天也帮物品回家</text>
-      <text class="hero-subtitle">按分类或地点快速找，向下滑动查看更多线索。</text>
+      <text class="hero-title">失物招领</text>
+      <text class="hero-subtitle">查看同学捡到的物品，按分类快速筛选。</text>
     </view>
+    <button class="hero-action" bindtap="startPublish">发布招领</button>
   </view>
 
   <scroll-view class="category-bar" scroll-x>
@@ -16,7 +17,7 @@
     >{{item}}</view>
   </scroll-view>
 
-  <view wx:if="{{items.length === 0}}" class="empty">暂时没有匹配的物品</view>
+  <view wx:if="{{items.length === 0}}" class="empty">暂时没有招领信息</view>
 
   <view wx:for="{{items}}" wx:key="_id" class="item-card" bindtap="goDetail" data-id="{{item._id}}">
     <view class="image-box">
@@ -26,7 +27,7 @@
     <view class="item-main">
       <view class="item-head">
         <text class="item-title">{{item.title}}</text>
-        <text class="type-pill">{{item.type === 'lost' ? '寻物' : '招领'}}</text>
+        <text class="type-pill found">招领</text>
       </view>
       <text class="item-desc">{{item.description}}</text>
       <view class="item-meta" wx:if="{{item.locationName || item.locationDetail}}">

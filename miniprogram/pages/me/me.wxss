@@ -30,6 +30,32 @@
   gap: 14rpx;
 }
 
+.profile-form {
+  display: block;
+}
+
+.form-title {
+  margin-bottom: 16rpx;
+  color: #111827;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.profile-input {
+  width: 100%;
+  height: 78rpx;
+  margin-bottom: 14rpx;
+  padding: 0 18rpx;
+  background: #f8fafb;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+}
+
+.save-profile {
+  width: 100%;
+}
+
 .mine-card {
   display: flex;
   align-items: center;

@@ -24,6 +24,20 @@
   font-size: 24rpx;
 }
 
+.hero-action {
+  flex: 0 0 auto;
+  width: 176rpx;
+  height: 64rpx;
+  margin: 0;
+  padding: 0;
+  color: #0f766e;
+  background: #ffffff;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 64rpx;
+}
+
 .category-bar {
   width: 100%;
   white-space: nowrap;
