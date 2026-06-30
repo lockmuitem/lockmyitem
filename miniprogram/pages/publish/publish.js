@@ -22,6 +22,7 @@ Page({
     locations: searchLocations(),
     locationCandidates: [],
     locating: false,
+    classifying: false,
     locationTip: '正在定位到上科大校内地点...',
     potentialMatches: [],
     form: initialForm()
@@ -136,10 +137,64 @@ Page({
         const file = res.tempFiles[0];
         this.setData({
           'form.imageUrls': [file.tempFilePath],
-          'form.category': this.data.form.category || '其他',
-          'form.aiTags': this.data.form.aiTags.length ? this.data.form.aiTags : ['图片自动识别']
+          'form.aiTags': ['模型识别中'],
+          classifying: true
         }, () => this.refreshPotentialMatches());
-        wx.showToast({ title: '图片已选择', icon: 'success' });
+        this.classifySelectedImage(file.tempFilePath);
+      }
+    });
+  },
+
+  classifySelectedImage(tempFilePath) {
+    const app = getApp();
+    if (!app.globalData.cloudReady) {
+      this.setData({ classifying: false, 'form.aiTags': [] });
+      wx.showToast({ title: '请先配置云开发环境', icon: 'none' });
+      return;
+    }
+
+    const suffix = tempFilePath.split('.').pop() || 'jpg';
+    const cloudPath = `lostfound/${Date.now()}_${Math.random().toString(16).slice(2)}.${suffix}`;
+    wx.cloud.uploadFile({
+      cloudPath,
+      filePath: tempFilePath,
+      success: (uploadRes) => {
+        wx.cloud.callFunction({
+          name: 'lostfound',
+          data: {
+            action: 'classifyImage',
+            fileId: uploadRes.fileID,
+            hint: `${this.data.form.title} ${this.data.form.description}`
+          },
+          success: (callRes) => {
+            const result = callRes.result || {};
+            if (!result.ok) {
+              this.setData({ classifying: false, 'form.aiTags': [] });
+              wx.showToast({ title: result.message || '模型识别失败', icon: 'none' });
+              return;
+            }
+            const data = result.data || {};
+            this.setData({
+              'form.imageUrls': [uploadRes.fileID],
+              'form.category': data.category || this.data.form.category,
+              'form.aiTags': data.aiTags || [],
+              'form.visualDescription': data.visualDescription || '',
+              'form.yoloObjects': data.yoloObjects || [],
+              'form.semanticTags': data.semanticTags || [],
+              'form.imageEmbedding': data.imageEmbedding || [],
+              'form.semanticEmbedding': data.semanticEmbedding || [],
+              classifying: false
+            }, () => this.refreshPotentialMatches());
+          },
+          fail: () => {
+            this.setData({ classifying: false, 'form.aiTags': [] });
+            wx.showToast({ title: '云函数调用失败', icon: 'none' });
+          }
+        });
+      },
+      fail: () => {
+        this.setData({ classifying: false, 'form.aiTags': [] });
+        wx.showToast({ title: '图片上传失败', icon: 'none' });
       }
     });
   },

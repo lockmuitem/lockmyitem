@@ -40,6 +40,26 @@
   border-radius: 8rpx;
 }
 
+.model-status,
+.model-desc {
+  margin: -8rpx 0 18rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.model-status {
+  color: #0f766e;
+  background: #e7f5f2;
+}
+
+.model-desc {
+  color: #344054;
+  background: #f8fafb;
+  border: 1rpx solid #e5e7eb;
+}
+
 .field {
   width: 100%;
   min-height: 82rpx;

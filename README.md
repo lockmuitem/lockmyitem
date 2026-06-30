@@ -82,16 +82,22 @@ wx.getLocation({
 
 只有相似度超过阈值时，发布页才会显示“可能是你的物品”；没有匹配则不显示。
 
-## 接入真实图像识别与语义检索
+## 接入 YOLO 图像识别与语义检索
 
-当前小程序端不直接调用外部 AI API，避免暴露密钥。正式上线建议通过云函数代理。
+当前分支已经改为云函数调用模型服务：图片上传到云存储后，云函数并行调用 YOLO 目标检测服务和语义理解服务，再融合成图片 tags。小程序端不直接保存 API key。
 
-推荐架构：
+需要配置云函数环境变量：
+
+- `YOLO_API_URL`
+- `SEMANTIC_API_URL`
+- `MODEL_API_KEY`，如模型服务需要鉴权
+
+调用链路：
 
 1. 小程序上传图片到云存储。
 2. 云函数拿到图片临时链接。
-3. 调用视觉模型提取结构化描述：物品、颜色、品牌、文字、挂件、特殊标记。
-4. 调用 embedding 模型生成语义向量或图片向量。
+3. 调用 YOLO 模型识别物品类别、目标框和置信度。
+4. 调用语义模型提取结构化描述：颜色、品牌、文字、挂件、特殊标记、自然语言 caption。
 5. 将 `visualDescription`、`imageEmbedding`、`semanticEmbedding` 写入物品记录。
 6. 用户发布寻物时，对历史招领物品做向量相似度检索。
 
@@ -99,11 +105,17 @@ wx.getLocation({
 
 `cloudfunctions/lostfound/index.js`
 
-其中 `classifyImage` 已预留：
+其中 `classifyImage` 会返回：
 
 - `visualDescription`
+- `yoloObjects`
+- `semanticTags`
 - `imageEmbedding`
 - `semanticEmbedding`
+
+模型服务接口约定见：
+
+`MODEL_API_CONTRACT.md`
 
 ## 云开发部署
 
@@ -149,7 +161,7 @@ wx.getLocation({
 
 ## 已知限制
 
-- 当前图片相似度是接口预留，尚未接入真实视觉 embedding。
+- 图像识别依赖已部署的 YOLO 服务和语义模型服务，未配置环境变量时会返回 `MODEL_NOT_CONFIGURED`。
 - 本地 mock 数据只存在于微信开发者工具本地缓存中。
 - 邮箱字段已保存，但邮件通知尚未接入实际发送服务。
 - 正式上线前需要配置真实 AppID、云开发环境和隐私接口声明。

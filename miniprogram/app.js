@@ -9,13 +9,13 @@ App({
   onLaunch() {
     ensureSeedData();
 
-    const cloudEnv = 'replace-with-your-cloud-env-id';
-    if (wx.cloud && cloudEnv !== 'replace-with-your-cloud-env-id') {
-      wx.cloud.init({
-        env: cloudEnv,
-        traceUser: true
-      });
-      this.globalData.cloudReady = true;
+    if (wx.cloud) {
+      try {
+        wx.cloud.init({ traceUser: true });
+        this.globalData.cloudReady = true;
+      } catch (error) {
+        this.globalData.cloudReady = false;
+      }
     }
   }
 });

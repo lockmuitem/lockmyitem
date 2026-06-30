@@ -11,6 +11,8 @@
       <image wx:if="{{form.imageUrls.length}}" src="{{form.imageUrls[0]}}" mode="aspectFill" />
       <text wx:else>上传图片，可留空</text>
     </button>
+    <view wx:if="{{classifying}}" class="model-status">正在调用 YOLO 和语义模型识别图片...</view>
+    <view wx:if="{{form.visualDescription}}" class="model-desc">{{form.visualDescription}}</view>
 
     <input class="field" placeholder="物品标题，可不填" value="{{form.title}}" bindinput="onInput" data-field="title" />
     <textarea class="field textarea" placeholder="补充描述，可不填" value="{{form.description}}" bindinput="onInput" data-field="description" />

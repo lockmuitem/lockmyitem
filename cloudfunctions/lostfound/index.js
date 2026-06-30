@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const fetch = require('node-fetch');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -28,6 +29,28 @@ const CATEGORY_KEYWORDS = {
 
 const BAD_WORDS = ['辱骂', '广告', '诈骗', '加群'];
 
+const MODEL_CONFIG = {
+  yoloUrl: process.env.YOLO_API_URL || '',
+  semanticUrl: process.env.SEMANTIC_API_URL || '',
+  apiKey: process.env.MODEL_API_KEY || ''
+};
+
+const YOLO_LABEL_MAP = {
+  umbrella: '雨伞',
+  bottle: '水杯',
+  cup: '水杯',
+  backpack: '书包',
+  handbag: '包',
+  suitcase: '行李箱',
+  cell_phone: '手机',
+  phone: '手机',
+  laptop: '电脑',
+  book: '书本资料',
+  card: '卡片',
+  key: '钥匙',
+  keys: '钥匙'
+};
+
 function ok(data = {}) {
   return { ok: true, data };
 }
@@ -50,6 +73,66 @@ function classifyByText(text = '') {
     }
   }
   return { category: '其他', aiTags: ['待确认'], confidence: 0 };
+}
+
+function unique(list) {
+  return Array.from(new Set((list || []).filter(Boolean)));
+}
+
+function normalizeYoloResult(result = {}) {
+  const rawObjects = result.objects || result.detections || result.results || [];
+  return rawObjects.map((entry) => ({
+    label: normalizeLabel(entry.label || entry.name || entry.class || entry.tag || ''),
+    rawLabel: entry.label || entry.name || entry.class || entry.tag || '',
+    confidence: Number(entry.confidence || entry.score || entry.probability || 0),
+    bbox: entry.bbox || entry.box || entry.xyxy || null,
+    attributes: entry.attributes || {}
+  })).filter((entry) => entry.label);
+}
+
+function normalizeLabel(label = '') {
+  const normalized = String(label).trim();
+  const key = normalized.toLowerCase().replace(/\s+/g, '_');
+  return YOLO_LABEL_MAP[key] || normalized;
+}
+
+function normalizeSemanticResult(result = {}) {
+  return {
+    description: result.description || result.caption || result.visualDescription || '',
+    category: result.category || '',
+    tags: unique(result.tags || result.aiTags || result.keywords || []),
+    colors: unique(result.colors || []),
+    accessories: unique(result.accessories || []),
+    imageEmbedding: result.imageEmbedding || result.image_embedding || [],
+    semanticEmbedding: result.semanticEmbedding || result.semantic_embedding || result.embedding || []
+  };
+}
+
+async function postModel(url, payload) {
+  const headers = { 'content-type': 'application/json' };
+  if (MODEL_CONFIG.apiKey) headers.authorization = `Bearer ${MODEL_CONFIG.apiKey}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    timeout: 20000
+  });
+  if (!response.ok) {
+    throw new Error(`模型服务 ${response.status}`);
+  }
+  return response.json();
+}
+
+function mapTagsToCategory(tags = [], hint = '') {
+  const source = `${tags.join(' ')} ${hint}`.toLowerCase();
+  const categories = Object.keys(CATEGORY_KEYWORDS);
+  for (let i = 0; i < categories.length; i += 1) {
+    const category = categories[i];
+    if (CATEGORY_KEYWORDS[category].some((word) => source.includes(word.toLowerCase()))) {
+      return category;
+    }
+  }
+  return '其他';
 }
 
 async function ensureUser(openid, profile = {}) {
@@ -97,17 +180,55 @@ async function listLocations(event) {
 }
 
 async function classifyImage(event) {
-  // Production hook:
-  // 1. Use a vision model to describe the image, e.g. colors, object type, accessories, text/logo.
-  // 2. Store imageEmbedding for visual similarity search.
-  // 3. Store semanticEmbedding for description similarity search.
-  // The fallback keeps the MVP deterministic until API credentials are configured.
-  const classification = classifyByText(event.hint || '');
+  if (!MODEL_CONFIG.yoloUrl || !MODEL_CONFIG.semanticUrl) {
+    return fail('请先配置 YOLO_API_URL 和 SEMANTIC_API_URL', 'MODEL_NOT_CONFIGURED');
+  }
+  if (!event.fileId && !event.imageUrl) {
+    return fail('缺少图片 fileId 或 imageUrl');
+  }
+
+  let imageUrl = event.imageUrl || '';
+  if (!imageUrl && event.fileId) {
+    const tempResult = await cloud.getTempFileURL({ fileList: [event.fileId] });
+    const file = tempResult.fileList && tempResult.fileList[0];
+    if (!file || !file.tempFileURL) return fail('无法获取图片临时链接');
+    imageUrl = file.tempFileURL;
+  }
+
+  const payload = {
+    imageUrl,
+    fileId: event.fileId || '',
+    hint: event.hint || ''
+  };
+  const [yoloRaw, semanticRaw] = await Promise.all([
+    postModel(MODEL_CONFIG.yoloUrl, payload),
+    postModel(MODEL_CONFIG.semanticUrl, payload)
+  ]);
+
+  const yoloObjects = normalizeYoloResult(yoloRaw);
+  const semantic = normalizeSemanticResult(semanticRaw);
+  const yoloTags = unique(yoloObjects.map((entry) => entry.label));
+  const aiTags = unique([
+    ...yoloTags,
+    ...semantic.tags,
+    ...semantic.colors,
+    ...semantic.accessories
+  ]);
+  const category = semantic.category || mapTagsToCategory(aiTags, event.hint || semantic.description);
+  const visualDescription = semantic.description || aiTags.join('、');
+
   return ok({
-    ...classification,
-    visualDescription: event.hint || '',
-    imageEmbedding: [],
-    semanticEmbedding: []
+    category,
+    aiTags,
+    yoloObjects,
+    semanticTags: semantic.tags,
+    visualDescription,
+    imageEmbedding: semantic.imageEmbedding,
+    semanticEmbedding: semantic.semanticEmbedding,
+    modelSources: {
+      yolo: MODEL_CONFIG.yoloUrl,
+      semantic: MODEL_CONFIG.semanticUrl
+    }
   });
 }
 
@@ -131,6 +252,11 @@ async function createItem(event, context) {
     aiTags: classification.aiTags,
     imageUrls: payload.imageUrls || [],
     thumbUrl: (payload.imageUrls || [])[0] || '',
+    visualDescription: payload.visualDescription || '',
+    yoloObjects: payload.yoloObjects || [],
+    semanticTags: payload.semanticTags || [],
+    imageEmbedding: payload.imageEmbedding || [],
+    semanticEmbedding: payload.semanticEmbedding || [],
     locationId: location ? location._id : '',
     locationName: location ? location.name : '',
     locationDetail: '',
