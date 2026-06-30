@@ -15,6 +15,10 @@ function initialForm() {
   };
 }
 
+function isCloudFile(filePath = '') {
+  return String(filePath).startsWith('cloud://');
+}
+
 Page({
   data: {
     categories: CATEGORIES,
@@ -62,6 +66,11 @@ Page({
     const field = event.currentTarget.dataset.field;
     this.setData({ [`form.${field}`]: event.detail.value });
     if (field === 'title' || field === 'description') {
+      const imageUrl = (this.data.form.imageUrls || [])[0] || '';
+      if (isCloudFile(imageUrl)) {
+        this.scheduleImageReclassification();
+        return;
+      }
       const result = classifyByText(`${this.data.form.title} ${this.data.form.description}`);
       if (result.confidence > 0 || event.detail.value.trim()) {
         this.setData({
@@ -159,42 +168,69 @@ Page({
       cloudPath,
       filePath: tempFilePath,
       success: (uploadRes) => {
-        wx.cloud.callFunction({
-          name: 'lostfound',
-          data: {
-            action: 'classifyImage',
-            fileId: uploadRes.fileID,
-            hint: `${this.data.form.title} ${this.data.form.description}`
-          },
-          success: (callRes) => {
-            const result = callRes.result || {};
-            if (!result.ok) {
-              this.setData({ classifying: false, 'form.aiTags': [] });
-              wx.showToast({ title: result.message || '模型识别失败', icon: 'none' });
-              return;
-            }
-            const data = result.data || {};
-            this.setData({
-              'form.imageUrls': [uploadRes.fileID],
-              'form.category': data.category || this.data.form.category,
-              'form.aiTags': data.aiTags || [],
-              'form.visualDescription': data.visualDescription || '',
-              'form.yoloObjects': data.yoloObjects || [],
-              'form.semanticTags': data.semanticTags || [],
-              'form.imageEmbedding': data.imageEmbedding || [],
-              'form.semanticEmbedding': data.semanticEmbedding || [],
-              classifying: false
-            }, () => this.refreshPotentialMatches());
-          },
-          fail: () => {
-            this.setData({ classifying: false, 'form.aiTags': [] });
-            wx.showToast({ title: '云函数调用失败', icon: 'none' });
-          }
-        });
+        this.classifyUploadedImage(uploadRes.fileID, { replaceImage: true });
       },
       fail: () => {
         this.setData({ classifying: false, 'form.aiTags': [] });
         wx.showToast({ title: '图片上传失败', icon: 'none' });
+      }
+    });
+  },
+
+  scheduleImageReclassification() {
+    if (this._classifyHintTimer) clearTimeout(this._classifyHintTimer);
+    this._classifyHintTimer = setTimeout(() => {
+      const fileId = (this.data.form.imageUrls || [])[0] || '';
+      if (isCloudFile(fileId)) {
+        this.classifyUploadedImage(fileId, { replaceImage: false, silentFail: true });
+      }
+    }, 800);
+  },
+
+  classifyUploadedImage(fileId, options = {}) {
+    const hint = [
+      this.data.form.title,
+      this.data.form.description,
+      this.data.form.category,
+      ...(this.data.form.aiTags || [])
+    ].join(' ').trim();
+
+    this.setData({
+      classifying: true,
+      'form.aiTags': this.data.form.aiTags.length ? this.data.form.aiTags : ['模型识别中']
+    });
+
+    wx.cloud.callFunction({
+      name: 'lostfound',
+      data: {
+        action: 'classifyImage',
+        fileId,
+        hint
+      },
+      success: (callRes) => {
+        const result = callRes.result || {};
+        if (!result.ok) {
+          this.setData({ classifying: false });
+          if (!options.silentFail) wx.showToast({ title: result.message || '模型识别失败', icon: 'none' });
+          return;
+        }
+        const data = result.data || {};
+        const nextData = {
+          'form.category': data.category || this.data.form.category,
+          'form.aiTags': data.aiTags || [],
+          'form.visualDescription': data.visualDescription || '',
+          'form.yoloObjects': data.yoloObjects || [],
+          'form.semanticTags': data.semanticTags || [],
+          'form.imageEmbedding': data.imageEmbedding || [],
+          'form.semanticEmbedding': data.semanticEmbedding || [],
+          classifying: false
+        };
+        if (options.replaceImage) nextData['form.imageUrls'] = [fileId];
+        this.setData(nextData, () => this.refreshPotentialMatches());
+      },
+      fail: () => {
+        this.setData({ classifying: false });
+        if (!options.silentFail) wx.showToast({ title: '云函数调用失败', icon: 'none' });
       }
     });
   },
