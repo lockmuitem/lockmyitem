@@ -275,6 +275,7 @@ async function createItem(event, context) {
 async function listItems(event) {
   const filters = event.filters || {};
   const query = { status: filters.status || 'active' };
+  if (filters.type) query.type = filters.type;
   if (filters.category && filters.category !== '全部') query.category = filters.category;
   if (filters.locationId) query.locationId = filters.locationId;
   const result = await db.collection(COLLECTIONS.items)

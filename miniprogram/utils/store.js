@@ -3,6 +3,7 @@ const { classifyByText } = require('./classifier');
 const { extractItemFeatures, scoreFeatureMatch } = require('./matcher');
 const { BAD_WORDS } = require('./constants');
 
+const KEY_V1 = 'lost_found_state_v1';
 const KEY = 'lost_found_state_v2';
 
 const LOCATION_ID_ALIASES = {
@@ -152,7 +153,7 @@ function createSeedState() {
 }
 
 function getState() {
-  const state = wx.getStorageSync(KEY) || createSeedState();
+  const state = loadState();
   let changed = false;
   state.items = (state.items || []).map((item) => {
       const location = findLocation(item.locationId);
@@ -188,6 +189,41 @@ function getState() {
   return state;
 }
 
+function loadState() {
+  const current = wx.getStorageSync(KEY);
+  if (current) return current;
+
+  const previous = wx.getStorageSync(KEY_V1);
+  if (previous) {
+    const migrated = migrateState(previous);
+    setState(migrated);
+    return migrated;
+  }
+
+  return createSeedState();
+}
+
+function migrateState(previous) {
+  const seed = createSeedState();
+  return {
+    ...seed,
+    ...previous,
+    currentUser: {
+      ...seed.currentUser,
+      ...(previous.currentUser || {}),
+      email: (previous.currentUser && previous.currentUser.email) || ''
+    },
+    items: previous.items || [],
+    comments: previous.comments || [],
+    thanks: previous.thanks || [],
+    notifications: previous.notifications || [],
+    reports: previous.reports || [],
+    campus_locations: LOCATIONS,
+    migratedFrom: KEY_V1,
+    migratedAt: nowIso()
+  };
+}
+
 function findLocation(locationId) {
   const nextId = LOCATION_ID_ALIASES[locationId] || locationId;
   return LOCATIONS.find((entry) => entry._id === nextId);
@@ -199,9 +235,7 @@ function setState(nextState) {
 }
 
 function ensureSeedData() {
-  if (!wx.getStorageSync(KEY)) {
-    setState(createSeedState());
-  }
+  getState();
 }
 
 function login() {
