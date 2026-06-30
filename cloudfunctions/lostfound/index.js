@@ -29,26 +29,10 @@ const CATEGORY_KEYWORDS = {
 
 const BAD_WORDS = ['辱骂', '广告', '诈骗', '加群'];
 
-const MODEL_CONFIG = {
-  yoloUrl: process.env.YOLO_API_URL || '',
-  semanticUrl: process.env.SEMANTIC_API_URL || '',
-  apiKey: process.env.MODEL_API_KEY || ''
-};
-
-const YOLO_LABEL_MAP = {
-  umbrella: '雨伞',
-  bottle: '水杯',
-  cup: '水杯',
-  backpack: '书包',
-  handbag: '包',
-  suitcase: '行李箱',
-  cell_phone: '手机',
-  phone: '手机',
-  laptop: '电脑',
-  book: '书本资料',
-  card: '卡片',
-  key: '钥匙',
-  keys: '钥匙'
+const HUNYUAN_CONFIG = {
+  apiKey: process.env.HUNYUAN_API_KEY || process.env.MODEL_API_KEY || '',
+  baseUrl: (process.env.HUNYUAN_BASE_URL || 'https://api.hunyuan.cloud.tencent.com/v1').replace(/\/$/, ''),
+  model: process.env.HUNYUAN_MODEL || 'hunyuan-vision'
 };
 
 function ok(data = {}) {
@@ -79,24 +63,18 @@ function unique(list) {
   return Array.from(new Set((list || []).filter(Boolean)));
 }
 
-function normalizeYoloResult(result = {}) {
-  const rawObjects = result.objects || result.detections || result.results || [];
-  return rawObjects.map((entry) => ({
-    label: normalizeLabel(entry.label || entry.name || entry.class || entry.tag || ''),
-    rawLabel: entry.label || entry.name || entry.class || entry.tag || '',
-    confidence: Number(entry.confidence || entry.score || entry.probability || 0),
-    bbox: entry.bbox || entry.box || entry.xyxy || null,
-    attributes: entry.attributes || {}
-  })).filter((entry) => entry.label);
+function parseJsonContent(content = '') {
+  const cleaned = String(content)
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('混元未返回可解析的 JSON');
+  return JSON.parse(match[0]);
 }
 
-function normalizeLabel(label = '') {
-  const normalized = String(label).trim();
-  const key = normalized.toLowerCase().replace(/\s+/g, '_');
-  return YOLO_LABEL_MAP[key] || normalized;
-}
-
-function normalizeSemanticResult(result = {}) {
+function normalizeHunyuanResult(result = {}) {
   return {
     description: result.description || result.caption || result.visualDescription || '',
     category: result.category || '',
@@ -108,19 +86,47 @@ function normalizeSemanticResult(result = {}) {
   };
 }
 
-async function postModel(url, payload) {
-  const headers = { 'content-type': 'application/json' };
-  if (MODEL_CONFIG.apiKey) headers.authorization = `Bearer ${MODEL_CONFIG.apiKey}`;
-  const response = await fetch(url, {
+async function callHunyuanVision(payload) {
+  const endpoint = `${HUNYUAN_CONFIG.baseUrl}/chat/completions`;
+  const prompt = [
+    '你是上海科技大学校园失物招领系统的图像识别助手。',
+    '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
+    '必须只返回 JSON，不要 Markdown，不要解释。',
+    'JSON 字段：description, category, tags, colors, accessories。',
+    'category 从以下中文类别中选择：证件、电子产品、书本资料、衣物、钥匙、校园卡、雨伞、水杯、其他。',
+    'tags/colors/accessories 必须是中文字符串数组。',
+    `用户补充描述：${payload.hint || '无'}`
+  ].join('\n');
+
+  const response = await fetch(endpoint, {
     method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-    timeout: 20000
+    headers: {
+      authorization: `Bearer ${HUNYUAN_CONFIG.apiKey}`,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: HUNYUAN_CONFIG.model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: payload.imageUrl } },
+            { type: 'text', text: prompt }
+          ]
+        }
+      ],
+      temperature: 0.2
+    }),
+    timeout: 30000
   });
+
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(`模型服务 ${response.status}`);
+    const message = data.error && (data.error.message || data.error.code);
+    throw new Error(`混元识别失败 ${response.status}${message ? `: ${message}` : ''}`);
   }
-  return response.json();
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  return normalizeHunyuanResult(parseJsonContent(content || ''));
 }
 
 function mapTagsToCategory(tags = [], hint = '') {
@@ -180,8 +186,8 @@ async function listLocations(event) {
 }
 
 async function classifyImage(event) {
-  if (!MODEL_CONFIG.yoloUrl || !MODEL_CONFIG.semanticUrl) {
-    return fail('请先配置 YOLO_API_URL 和 SEMANTIC_API_URL', 'MODEL_NOT_CONFIGURED');
+  if (!HUNYUAN_CONFIG.apiKey) {
+    return fail('请先配置 HUNYUAN_API_KEY', 'MODEL_NOT_CONFIGURED');
   }
   if (!event.fileId && !event.imageUrl) {
     return fail('缺少图片 fileId 或 imageUrl');
@@ -200,16 +206,8 @@ async function classifyImage(event) {
     fileId: event.fileId || '',
     hint: event.hint || ''
   };
-  const [yoloRaw, semanticRaw] = await Promise.all([
-    postModel(MODEL_CONFIG.yoloUrl, payload),
-    postModel(MODEL_CONFIG.semanticUrl, payload)
-  ]);
-
-  const yoloObjects = normalizeYoloResult(yoloRaw);
-  const semantic = normalizeSemanticResult(semanticRaw);
-  const yoloTags = unique(yoloObjects.map((entry) => entry.label));
+  const semantic = await callHunyuanVision(payload);
   const aiTags = unique([
-    ...yoloTags,
     ...semantic.tags,
     ...semantic.colors,
     ...semantic.accessories
@@ -220,14 +218,15 @@ async function classifyImage(event) {
   return ok({
     category,
     aiTags,
-    yoloObjects,
+    yoloObjects: [],
     semanticTags: semantic.tags,
     visualDescription,
     imageEmbedding: semantic.imageEmbedding,
     semanticEmbedding: semantic.semanticEmbedding,
     modelSources: {
-      yolo: MODEL_CONFIG.yoloUrl,
-      semantic: MODEL_CONFIG.semanticUrl
+      provider: 'tencent-hunyuan',
+      baseUrl: HUNYUAN_CONFIG.baseUrl,
+      model: HUNYUAN_CONFIG.model
     }
   });
 }

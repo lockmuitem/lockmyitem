@@ -1,79 +1,36 @@
-# 图像识别模型接口约定
+# 腾讯云混元图像识别接入说明
 
-当前小程序不会在前端直接跑 YOLO 或语义模型。图片上传到微信云存储后，由云函数 `lostfound` 获取临时图片链接，并并行调用两个模型服务：
+当前小程序不会在前端直接调用模型。图片上传到微信云存储后，由云函数 `lostfound` 获取临时图片链接，并直接调用腾讯云混元多模态模型生成结构化标签。
 
-- `YOLO_API_URL`：目标检测服务
-- `SEMANTIC_API_URL`：语义理解服务
+## 云函数环境变量
 
-两个地址通过微信云函数环境变量配置，密钥通过 `MODEL_API_KEY` 配置。
+在微信云开发控制台给 `cloudfunctions/lostfound` 配置：
 
-如果你还没有模型服务，可以使用仓库内的服务模板：
-
-`model-service/`
-
-部署后：
-
-- `YOLO_API_URL` 填 `https://你的域名/yolo`
-- `SEMANTIC_API_URL` 填 `https://你的域名/semantic`
-- `MODEL_API_KEY` 填你自己设置的共享密钥
-
-`OPENAI_API_KEY` 只需要配置在 `model-service` 的服务器环境变量里，用来调用语义识别模型；小程序和微信云函数不应保存这个密钥。
-
-## 请求格式
-
-云函数会向两个服务都发送同样的 POST JSON：
-
-```json
-{
-  "imageUrl": "https://tmp-file-url",
-  "fileId": "cloud://xxx",
-  "hint": "用户填写的标题和描述"
-}
+```text
+HUNYUAN_API_KEY=腾讯云混元 API Key
+HUNYUAN_MODEL=hunyuan-vision
+HUNYUAN_BASE_URL=https://api.hunyuan.cloud.tencent.com/v1
 ```
 
-请求头：
+说明：
 
-```http
-content-type: application/json
-authorization: Bearer ${MODEL_API_KEY}
-```
+- `HUNYUAN_API_KEY`：从腾讯云混元控制台/API Key 管理页面获取。
+- `HUNYUAN_MODEL`：默认使用视觉多模态模型，可按腾讯云控制台可用模型调整。
+- `HUNYUAN_BASE_URL`：默认是腾讯云混元 OpenAI 兼容接口，一般不用改。
+- `MODEL_API_KEY`：仅作为旧配置兼容备用，不建议新配置继续使用。
+- 不再需要 `YOLO_API_URL`、`SEMANTIC_API_URL`、`YOLO_MODEL` 或自建 `model-service`。
 
-如果没有配置 `MODEL_API_KEY`，则不发送 authorization。
+## 调用链路
 
-## YOLO 服务返回
+1. 小程序上传图片到微信云存储。
+2. 云函数通过 `cloud.getTempFileURL` 获取图片临时 HTTPS 链接。
+3. 云函数调用混元 `/chat/completions`，传入 `image_url` 和用户填写的标题/描述作为 hint。
+4. 混元返回 JSON：类别、标签、颜色、配件、自然语言描述。
+5. 云函数把结果写回发布表单字段，用于后续相似物品匹配。
 
-支持以下任一字段名：`objects`、`detections`、`results`。
+## 混元返回 JSON 约定
 
-```json
-{
-  "objects": [
-    {
-      "label": "umbrella",
-      "confidence": 0.94,
-      "bbox": [120, 88, 420, 620],
-      "attributes": {
-        "color": "black"
-      }
-    }
-  ]
-}
-```
-
-字段兼容：
-
-- `label` / `name` / `class` / `tag`
-- `confidence` / `score` / `probability`
-- `bbox` / `box` / `xyxy`
-
-云函数会把常见英文标签归一化成中文标签，例如：
-
-- `umbrella` -> `雨伞`
-- `bottle` / `cup` -> `水杯`
-- `cell_phone` / `phone` -> `手机`
-- `laptop` -> `电脑`
-- `key` / `keys` -> `钥匙`
-
-## 语义模型返回
+云函数会要求模型只返回 JSON：
 
 ```json
 {
@@ -81,22 +38,13 @@ authorization: Bearer ${MODEL_API_KEY}
   "category": "雨伞",
   "tags": ["雨伞", "黑色", "折叠", "红色钥匙扣"],
   "colors": ["黑色", "红色"],
-  "accessories": ["钥匙扣"],
-  "imageEmbedding": [0.12, -0.08],
-  "semanticEmbedding": [0.03, 0.24]
+  "accessories": ["钥匙扣"]
 }
 ```
 
-字段兼容：
+## 云函数最终返回
 
-- `description` / `caption` / `visualDescription`
-- `tags` / `aiTags` / `keywords`
-- `imageEmbedding` / `image_embedding`
-- `semanticEmbedding` / `semantic_embedding` / `embedding`
-
-## 云函数融合结果
-
-`classifyImage` 最终返回：
+`classifyImage` 会返回：
 
 ```json
 {
@@ -105,12 +53,17 @@ authorization: Bearer ${MODEL_API_KEY}
     "category": "雨伞",
     "aiTags": ["雨伞", "黑色", "折叠", "红色钥匙扣"],
     "yoloObjects": [],
-    "semanticTags": [],
+    "semanticTags": ["雨伞", "折叠", "红色钥匙扣"],
     "visualDescription": "黑色折叠雨伞，伞柄处有红色钥匙扣。",
     "imageEmbedding": [],
-    "semanticEmbedding": []
+    "semanticEmbedding": [],
+    "modelSources": {
+      "provider": "tencent-hunyuan",
+      "baseUrl": "https://api.hunyuan.cloud.tencent.com/v1",
+      "model": "hunyuan-vision"
+    }
   }
 }
 ```
 
-前端会把这些字段写入发布表单，并用于后续相似物品检索。
+前端会把这些字段写入发布表单，并用于后续相似物品检索。`yoloObjects` 仍保留为空数组，是为了兼容之前已经写好的前端字段。
