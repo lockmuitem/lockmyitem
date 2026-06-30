@@ -82,33 +82,97 @@ Page({
   },
 
   detectCampusLocation() {
-    this.setData({ locating: true, locationTip: '正在定位到上科大校内地点...' });
+    this.setData({ locating: true, locationTip: '正在申请位置权限...' });
+    wx.getSetting({
+      success: (setting) => {
+        const authorized = setting.authSetting['scope.userLocation'];
+        if (authorized) {
+          this.getPreciseCampusLocation();
+          return;
+        }
+        if (authorized === false) {
+          this.openLocationSetting();
+          return;
+        }
+        wx.authorize({
+          scope: 'scope.userLocation',
+          success: () => this.getPreciseCampusLocation(),
+          fail: () => this.handleLocationUnavailable('未获得定位权限，请手动选择上科大校内地点')
+        });
+      },
+      fail: () => this.handleLocationUnavailable('无法读取定位权限，请手动选择上科大校内地点')
+    });
+  },
+
+  openLocationSetting() {
+    wx.showModal({
+      title: '需要位置权限',
+      content: '开启定位后才能自动匹配上科大校内地点，也可以稍后手动选择。',
+      confirmText: '去开启',
+      cancelText: '手动选择',
+      success: (modalRes) => {
+        if (!modalRes.confirm) {
+          this.handleLocationUnavailable('未获得定位权限，请手动选择上科大校内地点');
+          return;
+        }
+        wx.openSetting({
+          success: (setting) => {
+            if (setting.authSetting['scope.userLocation']) {
+              this.getPreciseCampusLocation();
+            } else {
+              this.handleLocationUnavailable('未获得定位权限，请手动选择上科大校内地点');
+            }
+          },
+          fail: () => this.handleLocationUnavailable('未获得定位权限，请手动选择上科大校内地点')
+        });
+      }
+    });
+  },
+
+  getPreciseCampusLocation() {
+    this.setData({ locating: true, locationTip: '正在获取精准位置...' });
     wx.getLocation({
       type: 'gcj02',
       isHighAccuracy: true,
-      success: (res) => {
-        const candidates = nearestCampusLocations(res, 6);
-        const nearest = candidates[0];
-        const accuracy = Math.round(Number(res.accuracy) || 0);
-        const isLowAccuracy = accuracy >= 60 || nearest.distance > 80;
-        const tip = isLowAccuracy
-          ? `定位精度约 ${accuracy || '未知'}m，已预选 ${nearest.name}，请在候选地点中确认`
-          : `已按当前位置匹配到 ${nearest.name}，可在下方切换候选地点`;
-        this.setData({ locationCandidates: candidates });
-        this.setLocation(nearest, tip);
-      },
-      fail: () => {
-        this.setData({
-          locationCandidates: nearestCampusLocations(CAMPUS_CENTER, 6),
-          locationTip: '未获得定位权限，请手动选择上科大校内地点',
-          'form.locationId': '',
-          locationKeyword: '',
-          locations: searchLocations()
-        });
-      },
+      highAccuracyExpireTime: 4000,
+      success: (res) => this.applyLocatedPosition(res),
+      fail: () => this.handleLocationUnavailable('定位失败，请手动选择上科大校内地点'),
       complete: () => {
         this.setData({ locating: false });
       }
+    });
+  },
+
+  applyLocatedPosition(res) {
+    const candidates = nearestCampusLocations(res, 8);
+    const nearest = candidates[0];
+    const accuracy = Math.round(Number(res.accuracy) || 0);
+    if (!nearest || nearest.distance > 1200) {
+      this.setData({
+        locationCandidates: nearestCampusLocations(CAMPUS_CENTER, 8),
+        locationTip: `当前位置距离上科大约 ${nearest ? nearest.distance : '较远'}m，请确认微信开发者工具或手机定位是否在校内`,
+        'form.locationId': '',
+        locationKeyword: '',
+        locations: searchLocations()
+      });
+      return;
+    }
+    const isLowAccuracy = accuracy >= 60 || nearest.distance > 80;
+    const tip = isLowAccuracy
+      ? `定位精度约 ${accuracy || '未知'}m，已预选 ${nearest.name}，请在候选地点中确认`
+      : `已按当前位置匹配到 ${nearest.name}，可在下方切换候选地点`;
+    this.setData({ locationCandidates: candidates });
+    this.setLocation(nearest, tip);
+  },
+
+  handleLocationUnavailable(tip) {
+    this.setData({
+      locating: false,
+      locationCandidates: nearestCampusLocations(CAMPUS_CENTER, 8),
+      locationTip: tip,
+      'form.locationId': '',
+      locationKeyword: '',
+      locations: searchLocations()
     });
   },
 
