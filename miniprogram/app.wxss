@@ -3,7 +3,7 @@ page {
   color: #172A33;
   background: #EEF5F8;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 view,
@@ -22,7 +22,7 @@ textarea {
 .section-title {
   margin: 28rpx 0 16rpx;
   color: #172A33;
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 800;
 }
 
@@ -54,12 +54,12 @@ textarea {
 .button-primary,
 .button-secondary,
 .button-danger {
-  height: 76rpx;
+  height: 82rpx;
   margin: 0;
   padding: 0 28rpx;
   border-radius: 8rpx;
-  font-size: 28rpx;
-  line-height: 76rpx;
+  font-size: 30rpx;
+  line-height: 82rpx;
 }
 
 .button-primary {
@@ -87,13 +87,13 @@ textarea {
 .tag {
   display: inline-flex;
   align-items: center;
-  height: 44rpx;
+  height: 48rpx;
   margin: 0 12rpx 12rpx 0;
   padding: 0 18rpx;
   color: #53645f;
   background: #E8F0F3;
   border-radius: 999rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
 .tag.active {
@@ -146,12 +146,12 @@ textarea {
 .surface-eyebrow {
   margin-bottom: 10rpx;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 20rpx;
+  font-size: 22rpx;
   font-weight: 700;
 }
 
 .surface-title {
-  font-size: 42rpx;
+  font-size: 44rpx;
   font-weight: 900;
   line-height: 1.14;
 }
@@ -160,7 +160,7 @@ textarea {
   max-width: 500rpx;
   margin-top: 12rpx;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 1.42;
 }
 
@@ -172,6 +172,6 @@ textarea {
   color: #245B6B;
   background: #E4F0F2;
   border-radius: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }

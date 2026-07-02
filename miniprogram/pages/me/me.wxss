@@ -63,7 +63,7 @@
 
 .subtitle {
   color: rgba(255, 255, 255, 0.76);
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 1.35;
 }
 
@@ -72,7 +72,7 @@
   padding-top: 18rpx;
   color: rgba(255, 255, 255, 0.7);
   border-top: 1rpx solid rgba(255, 255, 255, 0.18);
-  font-size: 22rpx;
+  font-size: 24rpx;
   letter-spacing: 0;
 }
 
@@ -83,7 +83,7 @@
   background: #fff1f0;
   border: 1rpx solid #fecdca;
   border-radius: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
 .stats-grid {
@@ -112,7 +112,7 @@
 .stat-label {
   margin-top: 12rpx;
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .section-head {
@@ -126,19 +126,19 @@
 .section-kicker {
   margin-bottom: 6rpx;
   color: #245B6B;
-  font-size: 20rpx;
+  font-size: 22rpx;
   font-weight: 700;
 }
 
 .form-title {
   color: #111827;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 800;
 }
 
 .section-note {
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .profile-input {
@@ -150,7 +150,7 @@
   background: #F6FAFC;
   border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 .email-edit {
@@ -169,14 +169,14 @@
   flex: 1;
   height: 82rpx;
   padding: 0 20rpx;
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 .email-domain {
   flex: 0 0 auto;
   padding-right: 18rpx;
   color: #245B6B;
-  font-size: 23rpx;
+  font-size: 25rpx;
   font-weight: 800;
 }
 
@@ -216,13 +216,13 @@
 }
 
 .quick-title {
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 800;
 }
 
 .quick-subtitle {
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   opacity: 0.78;
 }
 
@@ -240,14 +240,14 @@
 
 .empty-title {
   color: #111827;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 800;
 }
 
 .empty-copy {
   margin-top: 10rpx;
   color: #667085;
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 1.45;
 }
 
@@ -275,7 +275,7 @@
   color: #245B6B;
   background: #E4F0F2;
   border-radius: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }
 
@@ -286,13 +286,13 @@
 
 .status-text {
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .title {
   overflow: hidden;
   color: #111827;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -302,7 +302,7 @@
   margin-top: 8rpx;
   overflow: hidden;
   color: #6b7280;
-  font-size: 24rpx;
+  font-size: 26rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -315,7 +315,7 @@
   color: #ffffff;
   background: #245B6B;
   border-radius: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 60rpx;
 }
 

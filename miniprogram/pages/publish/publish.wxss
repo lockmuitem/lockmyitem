@@ -36,7 +36,7 @@
   background: #F6FAFC;
   border: 1rpx dashed #A8CAD0;
   border-radius: 8rpx;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 800;
 }
 
@@ -51,7 +51,7 @@
   margin: -8rpx 0 18rpx;
   padding: 14rpx 18rpx;
   border-radius: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 1.45;
 }
 
@@ -74,7 +74,7 @@
   background: #F6FAFC;
   border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 .textarea {
@@ -126,7 +126,7 @@
 .location-tip {
   display: block;
   color: #667085;
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 1.45;
 }
 
@@ -134,7 +134,7 @@
   display: block;
   margin-top: 8rpx;
   color: #344054;
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.4;
 }
 
@@ -147,7 +147,7 @@
   color: #ffffff;
   background: #245B6B;
   border-radius: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 62rpx;
 }
 
@@ -180,7 +180,7 @@
   color: #245B6B;
   background: #ffffff;
   border-radius: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 54rpx;
 }
 
@@ -212,7 +212,7 @@
   background: #F6FAFC;
   border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
-  font-size: 26rpx;
+  font-size: 28rpx;
   line-height: 1.25;
   text-align: left;
 }
@@ -227,7 +227,7 @@
 .candidate text:last-child {
   margin-top: 4rpx;
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .candidate.active {
@@ -257,7 +257,7 @@
 .location-option text:last-child {
   margin-top: 6rpx;
   color: #6b7280;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .location-option.active {
@@ -303,13 +303,13 @@
 .match-meta {
   margin-top: 6rpx;
   color: #7a4b00;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
 .match-reason {
   margin-top: 6rpx;
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .match-pill {
@@ -318,7 +318,7 @@
   color: #ffffff;
   background: #c97700;
   border-radius: 6rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
 .submit {

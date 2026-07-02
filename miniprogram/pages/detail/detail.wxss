@@ -24,7 +24,7 @@
   content: "物品照片";
   background: rgba(255, 255, 255, 0.9);
   border-radius: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }
 
@@ -52,7 +52,7 @@
   display: block;
   margin-bottom: 8rpx;
   color: #245B6B;
-  font-size: 20rpx;
+  font-size: 22rpx;
   font-weight: 800;
 }
 
@@ -70,7 +70,7 @@
   color: #8B5A18;
   background: #FFF0CF;
   border-radius: 6rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   font-weight: 800;
 }
 
@@ -106,7 +106,7 @@
   display: block;
   margin-bottom: 8rpx;
   color: #172A33;
-  font-size: 32rpx;
+  font-size: 34rpx;
   font-weight: 900;
 }
 
@@ -116,7 +116,7 @@
   color: #245B6B;
   background: #E4F0F2;
   border-radius: 6rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   font-weight: 800;
 }
 
@@ -140,7 +140,7 @@
 
 .nearby-label {
   color: #667085;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
 .nearby-pill {
@@ -148,7 +148,7 @@
   color: #475467;
   background: #E8F0F3;
   border-radius: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .location-map {
@@ -164,7 +164,7 @@
   display: block;
   margin-top: 12rpx;
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.4;
 }
 
@@ -189,7 +189,7 @@
 
 .comment-name {
   color: #245B6B;
-  font-size: 24rpx;
+  font-size: 26rpx;
   font-weight: 800;
 }
 
@@ -227,7 +227,7 @@
   color: #ffffff;
   background: #245B6B;
   border-radius: 8rpx;
-  font-size: 26rpx;
+  font-size: 28rpx;
   line-height: 68rpx;
 }
 

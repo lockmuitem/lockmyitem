@@ -45,7 +45,7 @@
 .hero-eyebrow {
   margin-bottom: 12rpx;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 20rpx;
+  font-size: 22rpx;
   font-weight: 700;
 }
 
@@ -59,7 +59,7 @@
   max-width: 390rpx;
   margin-top: 12rpx;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 24rpx;
+  font-size: 26rpx;
   line-height: 1.42;
 }
 
@@ -74,7 +74,7 @@
   color: #365C9A;
   background: #ffffff;
   border-radius: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   font-weight: 800;
   line-height: 68rpx;
 }
@@ -109,7 +109,7 @@
 .stat-label {
   margin-top: 10rpx;
   color: #667085;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .category-bar {
@@ -154,7 +154,7 @@
   background: #E9EEF9;
   border: 1rpx solid #CFD9F0;
   border-radius: 8rpx;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 800;
 }
 
@@ -183,7 +183,7 @@
   display: block;
   margin-bottom: 4rpx;
   color: #365C9A;
-  font-size: 18rpx;
+  font-size: 20rpx;
   font-weight: 800;
 }
 
@@ -191,7 +191,7 @@
   display: block;
   min-width: 0;
   color: #111827;
-  font-size: 32rpx;
+  font-size: 34rpx;
   font-weight: 900;
   line-height: 1.25;
 }
@@ -202,7 +202,7 @@
   color: #365C9A;
   background: #E9EEF9;
   border-radius: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }
 
@@ -211,7 +211,7 @@
   margin: 12rpx 0;
   overflow: hidden;
   color: #475467;
-  font-size: 26rpx;
+  font-size: 28rpx;
   line-height: 1.42;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -222,7 +222,7 @@
   gap: 14rpx;
   margin-bottom: 12rpx;
   color: #6b7280;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
 .tag-row {
