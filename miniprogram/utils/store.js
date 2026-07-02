@@ -122,7 +122,10 @@ function createSeedState() {
       openid: 'local_demo_openid',
       nickName: '微信用户',
       avatarUrl: '',
-      email: ''
+      email: '',
+      emailPrefix: '',
+      registered: false,
+      loginMethod: ''
     },
     items,
     comments: [
@@ -211,7 +214,10 @@ function migrateState(previous) {
     currentUser: {
       ...seed.currentUser,
       ...(previous.currentUser || {}),
-      email: (previous.currentUser && previous.currentUser.email) || ''
+      email: (previous.currentUser && previous.currentUser.email) || '',
+      emailPrefix: extractEmailPrefix((previous.currentUser && previous.currentUser.email) || ''),
+      registered: Boolean(previous.currentUser && previous.currentUser.registered),
+      loginMethod: (previous.currentUser && previous.currentUser.loginMethod) || ''
     },
     items: previous.items || [],
     comments: previous.comments || [],
@@ -234,6 +240,10 @@ function setState(nextState) {
   return nextState;
 }
 
+function extractEmailPrefix(email = '') {
+  return String(email).replace(/@shanghaitech\.edu\.cn$/i, '').trim();
+}
+
 function ensureSeedData() {
   getState();
 }
@@ -247,17 +257,53 @@ function login() {
   return state.currentUser;
 }
 
+function isRegistered() {
+  const state = getState();
+  return Boolean(state.currentUser && state.currentUser.registered);
+}
+
+function normalizeSchoolEmailPrefix(prefix = '') {
+  return String(prefix)
+    .trim()
+    .replace(/@.*/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '');
+}
+
+function registerUser(profile = {}) {
+  const state = getState();
+  const user = login();
+  const emailPrefix = normalizeSchoolEmailPrefix(profile.emailPrefix || profile.email || '');
+  if (!emailPrefix && profile.loginMethod !== 'wechat') {
+    throw new Error('请输入上科大邮箱前缀');
+  }
+  const nickName = (profile.nickName || user.nickName || '微信用户').trim();
+  state.currentUser = {
+    ...user,
+    openid: profile.openid || user.openid || 'local_demo_openid',
+    nickName,
+    avatarUrl: profile.avatarUrl || user.avatarUrl || '',
+    emailPrefix,
+    email: emailPrefix ? `${emailPrefix}@shanghaitech.edu.cn` : '',
+    loginMethod: profile.loginMethod || 'email',
+    registered: true,
+    registeredAt: user.registeredAt || nowIso(),
+    updatedAt: nowIso()
+  };
+  setState(state);
+  return state.currentUser;
+}
+
 function updateUserProfile(profile = {}) {
   const state = getState();
   const user = login();
-  const email = (profile.email || '').trim();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error('请输入有效邮箱');
-  }
+  const emailPrefix = normalizeSchoolEmailPrefix(profile.emailPrefix || profile.email || user.emailPrefix || '');
+  const email = emailPrefix ? `${emailPrefix}@shanghaitech.edu.cn` : '';
   state.currentUser = {
     ...user,
     nickName: (profile.nickName || user.nickName || '微信用户').trim(),
+    emailPrefix,
     email,
+    registered: user.registered || Boolean(emailPrefix),
     updatedAt: nowIso()
   };
   setState(state);
@@ -498,6 +544,8 @@ function listMyItems() {
 module.exports = {
   ensureSeedData,
   login,
+  isRegistered,
+  registerUser,
   updateUserProfile,
   listItems,
   getItemDetail,

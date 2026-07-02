@@ -1,0 +1,125 @@
+.auth-page {
+  min-height: 100vh;
+  padding: 64rpx 28rpx;
+  background: #edf3f0;
+}
+
+.auth-card {
+  position: relative;
+  padding: 42rpx 34rpx 34rpx;
+  overflow: hidden;
+  background: #fffdf7;
+  border: 1rpx solid #dce5df;
+  border-radius: 8rpx;
+  box-shadow: 0 18rpx 42rpx rgba(37, 59, 55, 0.1);
+}
+
+.auth-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 10rpx;
+  content: "";
+  background: #0e6f68;
+}
+
+.auth-mark,
+.auth-title,
+.auth-copy,
+.field-label {
+  display: block;
+}
+
+.auth-mark {
+  color: #0e6f68;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.auth-title {
+  margin-top: 18rpx;
+  color: #162b29;
+  font-size: 46rpx;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.auth-copy {
+  margin-top: 16rpx;
+  color: #586965;
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.wechat-button,
+.submit-button {
+  width: 100%;
+  height: 82rpx;
+  margin: 30rpx 0 0;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 82rpx;
+}
+
+.wechat-button {
+  color: #0e6f68;
+  background: #e3f1ed;
+}
+
+.submit-button {
+  color: #ffffff;
+  background: #0e6f68;
+}
+
+.wechat-button::after,
+.submit-button::after {
+  border: 0;
+}
+
+.form-block {
+  margin-top: 24rpx;
+}
+
+.field-label {
+  margin-bottom: 10rpx;
+  color: #263936;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.field,
+.email-row {
+  min-height: 84rpx;
+  background: #f7faf8;
+  border: 1rpx solid #dfe7e3;
+  border-radius: 8rpx;
+}
+
+.field {
+  width: 100%;
+  padding: 0 20rpx;
+  font-size: 28rpx;
+}
+
+.email-row {
+  display: flex;
+  align-items: center;
+}
+
+.email-input {
+  min-width: 0;
+  flex: 1;
+  height: 84rpx;
+  padding: 0 18rpx;
+  font-size: 28rpx;
+}
+
+.email-domain {
+  flex: 0 0 auto;
+  padding-right: 18rpx;
+  color: #0e6f68;
+  font-size: 24rpx;
+  font-weight: 800;
+}

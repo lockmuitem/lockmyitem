@@ -48,7 +48,7 @@ Page({
         userSubtitle: `${user.email || '未填写邮箱'} · 校园互助账号`,
         profileForm: {
           nickName,
-          email: user.email || ''
+          emailPrefix: user.emailPrefix || String(user.email || '').replace(/@shanghaitech\.edu\.cn$/i, '')
         },
         items,
         stats,
@@ -65,7 +65,10 @@ Page({
 
   onProfileInput(event) {
     const field = event.currentTarget.dataset.field;
-    this.setData({ [`profileForm.${field}`]: event.detail.value });
+    const value = field === 'emailPrefix'
+      ? String(event.detail.value || '').replace(/@.*/g, '').replace(/[^a-zA-Z0-9._-]/g, '')
+      : event.detail.value;
+    this.setData({ [`profileForm.${field}`]: value });
   },
 
   saveProfile() {

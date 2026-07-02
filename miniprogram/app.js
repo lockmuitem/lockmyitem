@@ -1,4 +1,4 @@
-const { ensureSeedData } = require('./utils/store');
+const { ensureSeedData, isRegistered } = require('./utils/store');
 
 App({
   globalData: {
@@ -17,5 +17,11 @@ App({
         this.globalData.cloudReady = false;
       }
     }
+
+    setTimeout(() => {
+      if (!isRegistered()) {
+        wx.reLaunch({ url: '/pages/auth/auth' });
+      }
+    }, 200);
   }
 });

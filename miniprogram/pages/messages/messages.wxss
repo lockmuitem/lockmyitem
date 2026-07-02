@@ -1,5 +1,5 @@
 .messages-hero {
-  background: #123c3a;
+  background: #fffdf7;
 }
 
 .notice {
@@ -17,8 +17,8 @@
 .notice-type {
   display: inline-flex;
   padding: 6rpx 14rpx;
-  color: #0f766e;
-  background: #e7f5f2;
+  color: #0e6f68;
+  background: #e3f1ed;
   border-radius: 6rpx;
   font-size: 24rpx;
   font-weight: 800;

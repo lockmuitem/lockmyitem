@@ -1,6 +1,6 @@
 <view class="page">
   <view class="surface-hero publish-hero">
-    <text class="surface-eyebrow">CREATE A CLUE</text>
+    <text class="surface-eyebrow">发布线索</text>
     <text class="surface-title">{{form.type === 'lost' ? '发布寻物' : '发布招领'}}</text>
     <text class="surface-subtitle">上传图片、确认地点，系统会提取标签并提示潜在匹配。</text>
   </view>

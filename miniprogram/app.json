@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/auth/auth",
     "pages/publish/publish",
     "pages/map/map",
     "pages/found/found",

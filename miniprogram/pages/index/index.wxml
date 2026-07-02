@@ -2,7 +2,7 @@
   <view class="hero found-hero">
     <view class="hero-glow"></view>
     <view class="hero-copy">
-      <text class="hero-eyebrow">CAMPUS LOST & FOUND</text>
+      <text class="hero-eyebrow">校内招领台</text>
       <text class="hero-title">失物招领</text>
       <text class="hero-subtitle">把捡到的物品变成清晰线索，按地点、分类和 AI 标签快速确认。</text>
     </view>
@@ -56,7 +56,7 @@
     <view class="item-main">
       <view class="item-head">
         <view class="title-stack">
-          <text class="item-kicker">FOUND CLUE</text>
+          <text class="item-kicker">招领线索</text>
           <text class="item-title">{{item.title}}</text>
         </view>
         <text class="type-pill found">招领</text>

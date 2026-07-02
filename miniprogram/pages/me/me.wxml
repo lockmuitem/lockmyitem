@@ -30,13 +30,16 @@
   <view class="card profile-form">
     <view class="section-head">
       <view>
-        <text class="section-kicker">ACCOUNT</text>
+      <text class="section-kicker">账号资料</text>
         <text class="form-title">注册资料</text>
       </view>
       <text class="section-note">用于找回提醒</text>
     </view>
     <input class="profile-input" placeholder="昵称" value="{{profileForm.nickName}}" bindinput="onProfileInput" data-field="nickName" />
-    <input class="profile-input" placeholder="邮箱，用于接收找回提醒" type="text" value="{{profileForm.email}}" bindinput="onProfileInput" data-field="email" />
+    <view class="email-edit">
+      <input class="email-prefix" placeholder="邮箱前缀" type="text" value="{{profileForm.emailPrefix}}" bindinput="onProfileInput" data-field="emailPrefix" />
+      <text class="email-domain">@shanghaitech.edu.cn</text>
+    </view>
     <button class="button-primary save-profile" bindtap="saveProfile">保存资料</button>
   </view>
 
@@ -53,7 +56,7 @@
 
   <view class="section-head list-head">
     <view>
-      <text class="section-kicker">HISTORY</text>
+      <text class="section-kicker">发布记录</text>
       <text class="form-title">我的发布</text>
     </view>
   </view>

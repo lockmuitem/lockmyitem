@@ -1,6 +1,6 @@
 <view class="page">
   <view class="surface-hero messages-hero">
-    <text class="surface-eyebrow">NOTIFICATIONS</text>
+    <text class="surface-eyebrow">校内提醒</text>
     <text class="surface-title">消息中心</text>
     <text class="surface-subtitle">评论、感谢和系统提醒会集中出现在这里。</text>
   </view>

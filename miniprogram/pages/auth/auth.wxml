@@ -1,0 +1,26 @@
+<view class="auth-page">
+  <view class="auth-card">
+    <text class="auth-mark">上科大失物招领</text>
+    <text class="auth-title">先确认你的校内身份</text>
+    <text class="auth-copy">第一次使用需要注册。可以微信直接进入，也可以用学校邮箱前缀注册。</text>
+
+    <button class="wechat-button" bindtap="useWechatProfile">
+      微信直接登录
+    </button>
+
+    <view class="form-block">
+      <text class="field-label">昵称</text>
+      <input class="field" placeholder="例如 小夏" value="{{nickName}}" bindinput="onNickInput" />
+    </view>
+
+    <view class="form-block">
+      <text class="field-label">学校邮箱</text>
+      <view class="email-row">
+        <input class="email-input" placeholder="邮箱前缀" value="{{emailPrefix}}" bindinput="onEmailInput" />
+        <text class="email-domain">@shanghaitech.edu.cn</text>
+      </view>
+    </view>
+
+    <button class="submit-button" bindtap="submit">学校邮箱登录</button>
+  </view>
+</view>

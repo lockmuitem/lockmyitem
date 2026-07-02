@@ -1,6 +1,6 @@
 <view class="page">
   <view class="surface-hero found-home">
-    <text class="surface-eyebrow">RETURNED ITEMS</text>
+    <text class="surface-eyebrow">归还记录</text>
     <text class="surface-title">已找到</text>
     <text class="surface-subtitle">这里保留已经找回或归还的记录，方便同学确认线索状态。</text>
   </view>

@@ -1,7 +1,7 @@
 <view class="page">
   <view class="hero lost-hero">
     <view class="hero-copy">
-      <text class="hero-eyebrow">MATCH REQUESTS</text>
+      <text class="hero-eyebrow">寻物登记</text>
       <text class="hero-title">寻物</text>
       <text class="hero-subtitle">发布和查看正在寻找的物品，系统会按图像标签与地点做相似匹配。</text>
     </view>
@@ -38,7 +38,10 @@
     </view>
     <view class="item-main">
       <view class="item-head">
-        <text class="item-title">{{item.title}}</text>
+        <view class="title-stack">
+          <text class="item-kicker">寻物线索</text>
+          <text class="item-title">{{item.title}}</text>
+        </view>
         <text class="type-pill lost">寻物</text>
       </view>
       <text class="item-desc">{{item.description}}</text>

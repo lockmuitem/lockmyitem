@@ -7,7 +7,7 @@
   <view class="card detail-card">
     <view class="detail-head">
       <view class="title-block">
-        <text class="detail-kicker">ITEM DETAIL</text>
+        <text class="detail-kicker">{{item.type === 'lost' ? '寻物详情' : '招领详情'}}</text>
         <text class="title">{{item.title}}</text>
       </view>
       <text class="type-pill {{itemTypeClass}}">{{itemTypeText}}</text>
