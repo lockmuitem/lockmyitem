@@ -1,10 +1,26 @@
 <view class="page">
   <view class="hero found-hero">
-    <view>
+    <view class="hero-copy">
+      <text class="hero-eyebrow">SHANGHAITECH CAMPUS</text>
       <text class="hero-title">失物招领</text>
-      <text class="hero-subtitle">查看同学捡到的物品，按分类快速筛选。</text>
+      <text class="hero-subtitle">查看同学捡到的物品，按分类、地点和标签快速筛选。</text>
     </view>
     <button class="hero-action" bindtap="startPublish">发布招领</button>
+  </view>
+
+  <view class="stats-row">
+    <view class="stat-card">
+      <text class="stat-value">{{stats.total}}</text>
+      <text class="stat-label">进行中</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{stats.today}}</text>
+      <text class="stat-label">今日新增</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{stats.returned}}</text>
+      <text class="stat-label">已归还</text>
+    </view>
   </view>
 
   <scroll-view class="category-bar" scroll-x>
@@ -31,9 +47,9 @@
       </view>
       <text class="item-desc">{{item.description}}</text>
       <view class="item-meta" wx:if="{{item.locationName || item.locationDetail}}">
-        <text>{{item.locationName}}</text>
+        <text>地点 · {{item.locationName}}</text>
       </view>
-      <view>
+      <view class="tag-row">
         <text class="tag">{{item.category}}</text>
         <text wx:for="{{item.aiTags}}" wx:key="*this" class="tag light">{{item}}</text>
       </view>
