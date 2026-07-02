@@ -1,30 +1,76 @@
-<view class="page">
-  <view class="profile card">
-    <view class="avatar">{{user.nickName ? user.nickName.slice(0, 1) : '微'}}</view>
-    <view>
-      <text class="name">{{user.nickName}}</text>
-      <text class="muted">{{user.email || '未填写邮箱'}} · 校园互助账号</text>
+<view class="page me-page">
+  <view class="profile-hero">
+    <view class="profile-main">
+      <view class="avatar">{{avatarText}}</view>
+      <view class="identity">
+        <text class="name">{{user.nickName || '微信用户'}}</text>
+        <text class="subtitle">{{userSubtitle}}</text>
+      </view>
+    </view>
+    <view class="hero-badge">ShanghaiTech Lost & Found</view>
+  </view>
+
+  <view wx:if="{{loadError}}" class="error-strip">{{loadError}}</view>
+
+  <view class="stats-grid">
+    <view class="stat-card">
+      <text class="stat-value">{{stats.total}}</text>
+      <text class="stat-label">全部发布</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{stats.active}}</text>
+      <text class="stat-label">进行中</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{stats.returned}}</text>
+      <text class="stat-label">已找回</text>
     </view>
   </view>
 
   <view class="card profile-form">
-    <view class="form-title">注册资料</view>
+    <view class="section-head">
+      <view>
+        <text class="section-kicker">ACCOUNT</text>
+        <text class="form-title">注册资料</text>
+      </view>
+      <text class="section-note">用于找回提醒</text>
+    </view>
     <input class="profile-input" placeholder="昵称" value="{{profileForm.nickName}}" bindinput="onProfileInput" data-field="nickName" />
     <input class="profile-input" placeholder="邮箱，用于接收找回提醒" type="text" value="{{profileForm.email}}" bindinput="onProfileInput" data-field="email" />
     <button class="button-primary save-profile" bindtap="saveProfile">保存资料</button>
   </view>
 
   <view class="quick-actions">
-    <button class="button-secondary" bindtap="goMessages">消息中心</button>
-    <button class="button-primary" bindtap="goPublish">继续发布</button>
+    <button class="quick-card secondary" bindtap="goMessages">
+      <text class="quick-title">消息中心</text>
+      <text class="quick-subtitle">查看评论与提醒</text>
+    </button>
+    <button class="quick-card primary" bindtap="goPublish">
+      <text class="quick-title">继续发布</text>
+      <text class="quick-subtitle">上传线索或寻物</text>
+    </button>
   </view>
 
-  <view class="section-title">我的发布</view>
-  <view wx:if="{{items.length === 0}}" class="empty">你还没有发布过线索</view>
-  <view wx:for="{{items}}" wx:key="_id" class="card mine-card" bindtap="goDetail" data-id="{{item._id}}">
+  <view class="section-head list-head">
     <view>
+      <text class="section-kicker">HISTORY</text>
+      <text class="form-title">我的发布</text>
+    </view>
+  </view>
+
+  <view wx:if="{{items.length === 0}}" class="empty-panel">
+    <text class="empty-title">还没有发布过线索</text>
+    <text class="empty-copy">发布招领或寻物后，会在这里统一管理状态。</text>
+  </view>
+
+  <view wx:for="{{items}}" wx:key="_id" class="card mine-card" bindtap="goDetail" data-id="{{item._id}}">
+    <view class="item-content">
+      <view class="item-row">
+        <text class="type-pill {{item.type}}">{{item.typeText}}</text>
+        <text class="status-text">{{item.statusText}}</text>
+      </view>
       <text class="title">{{item.title}}</text>
-      <text class="meta">{{item.status === 'returned' ? '已回家' : '寻找中'}} · {{item.category}}{{item.locationName ? ' · ' + item.locationName : ''}}</text>
+      <text class="meta">{{item.metaText}}</text>
     </view>
     <button
       wx:if="{{item.status === 'active'}}"
