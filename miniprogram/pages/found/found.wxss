@@ -1,5 +1,5 @@
 .found-home {
-  background: #fffdf7;
+  background: #F8FBFC;
 }
 
 .summary-card {
@@ -8,13 +8,13 @@
   gap: 14rpx;
   margin-bottom: 20rpx;
   padding: 22rpx 24rpx;
-  background: #fffdf7;
-  border: 1rpx solid #dde6e1;
+  background: #FFFFFF;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
 }
 
 .summary-number {
-  color: #0e6f68;
+  color: #C4862F;
   font-size: 42rpx;
   font-weight: 900;
   line-height: 1;
@@ -34,8 +34,8 @@
 .badge {
   flex: 0 0 auto;
   padding: 10rpx 16rpx;
-  color: #0e6f68;
-  background: #e3f1ed;
+  color: #245B6B;
+  background: #E4F0F2;
   border-radius: 6rpx;
   font-size: 24rpx;
   font-weight: 800;

@@ -14,12 +14,12 @@
     "navigationBarTitleText": "上科大失物招领",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f6f7f9"
+    "backgroundColor": "#EEF5F8"
   },
   "tabBar": {
     "color": "#6b7280",
-    "selectedColor": "#0f766e",
-    "backgroundColor": "#ffffff",
+    "selectedColor": "#245B6B",
+    "backgroundColor": "#F8FBFC",
     "borderStyle": "black",
     "list": [
       {

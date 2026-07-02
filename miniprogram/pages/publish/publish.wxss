@@ -1,5 +1,5 @@
 .publish-hero {
-  background: #fffdf7;
+  background: #FFFFFF;
 }
 
 .segmented {
@@ -7,7 +7,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 8rpx;
   padding: 6rpx;
-  background: #e8eeeb;
+  background: #E8F0F3;
   border-radius: 8rpx;
 }
 
@@ -20,7 +20,7 @@
 }
 
 .segmented .active {
-  color: #0e6f68;
+  color: #245B6B;
   background: #ffffff;
   font-weight: 700;
 }
@@ -32,9 +32,9 @@
   width: 100%;
   height: 300rpx;
   margin: 24rpx 0;
-  color: #0e6f68;
-  background: #f7faf8;
-  border: 1rpx dashed #9cc8bd;
+  color: #245B6B;
+  background: #F6FAFC;
+  border: 1rpx dashed #A8CAD0;
   border-radius: 8rpx;
   font-size: 30rpx;
   font-weight: 800;
@@ -56,14 +56,14 @@
 }
 
 .model-status {
-  color: #0e6f68;
-  background: #e3f1ed;
+  color: #245B6B;
+  background: #E4F0F2;
 }
 
 .model-desc {
   color: #344054;
-  background: #f7faf8;
-  border: 1rpx solid #dfe7e3;
+  background: #F6FAFC;
+  border: 1rpx solid #D7E4E8;
 }
 
 .field {
@@ -71,8 +71,8 @@
   min-height: 82rpx;
   margin-bottom: 18rpx;
   padding: 0 20rpx;
-  background: #f7faf8;
-  border: 1rpx solid #dfe7e3;
+  background: #F6FAFC;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
   font-size: 28rpx;
 }
@@ -91,14 +91,14 @@
 .location-panel {
   margin: 22rpx 0 16rpx;
   padding: 18rpx;
-  background: #f7faf8;
-  border: 1rpx solid #dfe7e3;
+  background: #F6FAFC;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
 }
 
 .location-panel.ok {
-  background: #e3f1ed;
-  border-color: #9cc8bd;
+  background: #E4F0F2;
+  border-color: #A8CAD0;
 }
 
 .location-panel.warn {
@@ -145,7 +145,7 @@
   margin: 0;
   padding: 0 18rpx;
   color: #ffffff;
-  background: #0e6f68;
+  background: #245B6B;
   border-radius: 8rpx;
   font-size: 24rpx;
   line-height: 62rpx;
@@ -166,8 +166,8 @@
   gap: 16rpx;
   margin-bottom: 12rpx;
   padding: 14rpx 18rpx;
-  color: #0e6f68;
-  background: #e3f1ed;
+  color: #245B6B;
+  background: #E4F0F2;
   border-radius: 8rpx;
 }
 
@@ -177,7 +177,7 @@
   height: 54rpx;
   margin: 0;
   padding: 0 18rpx;
-  color: #0e6f68;
+  color: #245B6B;
   background: #ffffff;
   border-radius: 8rpx;
   font-size: 24rpx;
@@ -190,7 +190,7 @@
 
 .clear-location {
   margin-bottom: 14rpx;
-  background: #e3f1ed;
+  background: #E4F0F2;
 }
 
 .candidate-list {
@@ -209,8 +209,8 @@
   margin: 0;
   padding: 14rpx 16rpx;
   color: #344054;
-  background: #f7faf8;
-  border: 1rpx solid #dfe7e3;
+  background: #F6FAFC;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
   font-size: 26rpx;
   line-height: 1.25;
@@ -231,9 +231,9 @@
 }
 
 .candidate.active {
-  color: #0e6f68;
-  background: #e3f1ed;
-  border-color: #0e6f68;
+  color: #245B6B;
+  background: #E4F0F2;
+  border-color: #245B6B;
 }
 
 .location-list {
@@ -245,8 +245,8 @@
 
 .location-option {
   padding: 18rpx;
-  background: #f7faf8;
-  border: 1rpx solid #dfe7e3;
+  background: #F6FAFC;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
 }
 
@@ -261,9 +261,9 @@
 }
 
 .location-option.active {
-  color: #0e6f68;
-  background: #e3f1ed;
-  border-color: #0e6f68;
+  color: #245B6B;
+  background: #E4F0F2;
+  border-color: #245B6B;
 }
 
 .match-panel {

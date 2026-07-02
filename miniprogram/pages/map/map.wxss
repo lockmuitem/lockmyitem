@@ -8,11 +8,11 @@
   margin-bottom: 16rpx;
   padding: 34rpx 30rpx;
   overflow: hidden;
-  color: #173330;
-  background: #fffdf7;
-  border: 1rpx solid #dce5df;
+  color: #ffffff;
+  background: #365C9A;
+  border: 1rpx solid rgba(54, 92, 154, 0.18);
   border-radius: 8rpx;
-  box-shadow: 0 16rpx 34rpx rgba(37, 59, 55, 0.08);
+  box-shadow: 0 18rpx 36rpx rgba(54, 92, 154, 0.18);
 }
 
 .hero::after {
@@ -23,7 +23,7 @@
   width: 10rpx;
   height: auto;
   content: "";
-  background: #2f6f9f;
+  background: #C4862F;
   border: 0;
   border-radius: 0;
 }
@@ -44,7 +44,7 @@
 
 .hero-eyebrow {
   margin-bottom: 12rpx;
-  color: #2f6f9f;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 20rpx;
   font-weight: 700;
 }
@@ -58,7 +58,7 @@
 .hero-subtitle {
   max-width: 390rpx;
   margin-top: 12rpx;
-  color: #5f706b;
+  color: rgba(255, 255, 255, 0.78);
   font-size: 24rpx;
   line-height: 1.42;
 }
@@ -71,8 +71,8 @@
   height: 68rpx;
   margin: 0;
   padding: 0;
-  color: #ffffff;
-  background: #2f6f9f;
+  color: #365C9A;
+  background: #ffffff;
   border-radius: 8rpx;
   font-size: 24rpx;
   font-weight: 800;
@@ -93,14 +93,14 @@
 .stat-card {
   min-height: 104rpx;
   padding: 16rpx;
-  background: #fffdf7;
-  border: 1rpx solid #dde6e1;
+  background: #FFFFFF;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
   box-shadow: 0 8rpx 22rpx rgba(16, 24, 40, 0.04);
 }
 
 .stat-value {
-  color: #17365f;
+  color: #365C9A;
   font-size: 34rpx;
   font-weight: 900;
   line-height: 1;
@@ -125,8 +125,8 @@
   padding: 20rpx;
   position: relative;
   overflow: hidden;
-  background: #fffdf7;
-  border: 1rpx solid #dde6e1;
+  background: #FFFFFF;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
   box-shadow: 0 10rpx 26rpx rgba(16, 24, 40, 0.05);
 }
@@ -138,7 +138,7 @@
   left: 0;
   width: 6rpx;
   content: "";
-  background: #2f6f9f;
+  background: #365C9A;
   border-radius: 0 8rpx 8rpx 0;
 }
 
@@ -150,8 +150,9 @@
   width: 172rpx;
   height: 172rpx;
   overflow: hidden;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: #365C9A;
+  background: #E9EEF9;
+  border: 1rpx solid #CFD9F0;
   border-radius: 8rpx;
   font-size: 26rpx;
   font-weight: 800;
@@ -181,7 +182,7 @@
 .item-kicker {
   display: block;
   margin-bottom: 4rpx;
-  color: #2f6f9f;
+  color: #365C9A;
   font-size: 18rpx;
   font-weight: 800;
 }
@@ -198,8 +199,8 @@
 .type-pill {
   flex: 0 0 auto;
   padding: 6rpx 12rpx;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: #365C9A;
+  background: #E9EEF9;
   border-radius: 6rpx;
   font-size: 22rpx;
   font-weight: 700;
@@ -248,7 +249,7 @@
   max-width: 112rpx;
   padding: 0;
   color: #ffffff;
-  background: #17365f;
+  background: #365C9A;
   border-radius: 50%;
   box-shadow: 0 14rpx 30rpx rgba(23, 54, 95, 0.26);
 }

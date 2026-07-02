@@ -7,9 +7,9 @@
   height: 390rpx;
   margin-bottom: 20rpx;
   overflow: hidden;
-  color: #0e6f68;
-  background: #e5f0ec;
-  border: 1rpx solid #d2e2da;
+  color: #245B6B;
+  background: #E6F1F3;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
   font-size: 42rpx;
   font-weight: 900;
@@ -20,9 +20,9 @@
   right: 22rpx;
   bottom: 18rpx;
   padding: 8rpx 14rpx;
-  color: #5f706b;
+  color: #61727A;
   content: "物品照片";
-  background: rgba(255, 253, 247, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   border-radius: 6rpx;
   font-size: 22rpx;
   font-weight: 700;
@@ -51,14 +51,14 @@
 .detail-kicker {
   display: block;
   margin-bottom: 8rpx;
-  color: #0e6f68;
+  color: #245B6B;
   font-size: 20rpx;
   font-weight: 800;
 }
 
 .title {
   display: block;
-  color: #102524;
+  color: #172A33;
   font-size: 38rpx;
   font-weight: 900;
   line-height: 1.22;
@@ -67,8 +67,8 @@
 .type-pill {
   flex: 0 0 auto;
   padding: 8rpx 14rpx;
-  color: #8a5a00;
-  background: #fff4cc;
+  color: #8B5A18;
+  background: #FFF0CF;
   border-radius: 6rpx;
   font-size: 24rpx;
   font-weight: 800;
@@ -105,7 +105,7 @@
 .location-name {
   display: block;
   margin-bottom: 8rpx;
-  color: #102524;
+  color: #172A33;
   font-size: 32rpx;
   font-weight: 900;
 }
@@ -113,8 +113,8 @@
 .location-badge {
   flex: 0 0 auto;
   padding: 8rpx 14rpx;
-  color: #0e6f68;
-  background: #e3f1ed;
+  color: #245B6B;
+  background: #E4F0F2;
   border-radius: 6rpx;
   font-size: 24rpx;
   font-weight: 800;
@@ -124,8 +124,8 @@
   margin-top: 18rpx;
   padding: 16rpx 18rpx;
   color: #344054;
-  background: #f7faf8;
-  border: 1rpx solid #dfe7e3;
+  background: #F6FAFC;
+  border: 1rpx solid #CDE0E5;
   border-radius: 8rpx;
   line-height: 1.45;
 }
@@ -146,7 +146,7 @@
 .nearby-pill {
   padding: 8rpx 12rpx;
   color: #475467;
-  background: #e8eeeb;
+  background: #E8F0F3;
   border-radius: 6rpx;
   font-size: 22rpx;
 }
@@ -156,7 +156,7 @@
   height: 360rpx;
   margin-top: 18rpx;
   overflow: hidden;
-  border: 1rpx solid #dfe7e3;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
 }
 
@@ -177,8 +177,8 @@
 .comment {
   margin-bottom: 14rpx;
   padding: 18rpx;
-  background: #fffdf7;
-  border: 1rpx solid #dde6e1;
+  background: #FFFFFF;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
 }
 
@@ -188,7 +188,7 @@
 }
 
 .comment-name {
-  color: #0e6f68;
+  color: #245B6B;
   font-size: 24rpx;
   font-weight: 800;
 }
@@ -205,8 +205,8 @@
   gap: 12rpx;
   margin-top: 18rpx;
   padding: 12rpx;
-  background: #fffdf7;
-  border: 1rpx solid #dde6e1;
+  background: #FFFFFF;
+  border: 1rpx solid #D7E4E8;
   border-radius: 8rpx;
 }
 
@@ -215,7 +215,7 @@
   flex: 1;
   height: 68rpx;
   padding: 0 16rpx;
-  background: #f7faf8;
+  background: #F6FAFC;
   border-radius: 8rpx;
 }
 
@@ -225,7 +225,7 @@
   height: 68rpx;
   margin: 0;
   color: #ffffff;
-  background: #0e6f68;
+  background: #245B6B;
   border-radius: 8rpx;
   font-size: 26rpx;
   line-height: 68rpx;
