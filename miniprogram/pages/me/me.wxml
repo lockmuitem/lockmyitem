@@ -1,5 +1,9 @@
 <view class="page me-page">
   <view class="profile-hero">
+    <view class="hero-topline">
+      <text class="hero-label">个人中心</text>
+      <text class="hero-state">校内互助账号</text>
+    </view>
     <view class="profile-main">
       <view class="avatar">{{avatarText}}</view>
       <view class="identity">
@@ -7,7 +11,10 @@
         <text class="subtitle">{{userSubtitle}}</text>
       </view>
     </view>
-    <view class="hero-badge">ShanghaiTech Lost & Found</view>
+    <view class="hero-badge">
+      <text>ShanghaiTech Lost & Found</text>
+      <text>找回、归还、提醒都在这里</text>
+    </view>
   </view>
 
   <view wx:if="{{loadError}}" class="error-strip">{{loadError}}</view>
@@ -62,6 +69,7 @@
   </view>
 
   <view wx:if="{{items.length === 0}}" class="empty-panel">
+    <view class="empty-mark">+</view>
     <text class="empty-title">还没有发布过线索</text>
     <text class="empty-copy">发布招领或寻物后，会在这里统一管理状态。</text>
   </view>
