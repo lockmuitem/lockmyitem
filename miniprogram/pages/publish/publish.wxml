@@ -38,6 +38,13 @@
     </scroll-view>
 
     <view class="location-panel {{locationState}}">
+      <view class="indoor-consent">
+        <view>
+          <text class="indoor-title">室内增强定位</text>
+          <text class="indoor-copy">开启后仅在重新定位时采集 Wi-Fi/BLE 信号，用于辅助判断楼内地点；关闭时不会采集或上传。</text>
+        </view>
+        <switch checked="{{indoorPositioningEnabled}}" bindchange="toggleIndoorPositioning" color="#245B6B" />
+      </view>
       <view class="location-head">
         <view>
           <view class="row-label">地点</view>

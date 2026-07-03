@@ -49,9 +49,9 @@ wx.getLocation({
 当前定位链路已经升级为多源融合：
 
 1. 连续调用 3 次微信高精度定位，选取 `距离校内 POI + 定位精度` 综合分最低的一次。
-2. 自动扫描当前 Wi-Fi 信号和附近 BLE 设备，作为室内定位辅助信号。
+2. 默认不采集 Wi-Fi/BLE。用户在发布页手动开启“室内增强定位”并重新定位后，才会采集当前 Wi-Fi 信号和附近 BLE 设备作为室内定位辅助信号。
 3. 若 `miniprogram/utils/indoor-fingerprints.js` 中配置了真实 AP/BLE 指纹，会对对应校内地点加权排序。
-4. 若云函数配置了腾讯室内定位服务，会调用 `resolveTencentIndoor` action，把腾讯室内结果纳入候选地点排序。
+4. 若云函数配置了腾讯室内定位服务，会在用户开启室内增强后调用 `resolveTencentIndoor` action，把腾讯室内结果纳入候选地点排序。
 5. 当定位精度足够、最近地点足够近时自动填充；否则展示候选地点，要求用户确认，避免误判。
 
 地点库位于：
@@ -79,6 +79,8 @@ wx.getLocation({
 - `miniprogram/utils/indoor-positioning.js`
 - `miniprogram/utils/indoor-fingerprints.js`
 
+隐私边界：室内增强默认关闭。关闭时不会采集或上传 Wi-Fi/BLE 信号；只有用户打开发布页里的“室内增强定位”开关并重新定位后，才会进行采集。
+
 `indoor-fingerprints.js` 默认不写入真实 AP/BLE 数据。比赛现场或校内测试时，可以按地点采集真实信号后填入：
 
 ```js
@@ -102,7 +104,7 @@ TENCENT_INDOOR_API_KEY=腾讯室内服务密钥或腾讯地图 Key
 TENCENT_INDOOR_CAMPUS_ID=shanghaitech
 ```
 
-说明：腾讯地图室内能力通常需要室内图/室内定位服务开通和场地数据接入。未配置时，小程序会自动降级为“GPS + 校内 POI + Wi-Fi/BLE 本地指纹”的定位策略。
+说明：腾讯地图室内能力通常需要室内图/室内定位服务开通和场地数据接入。未配置时，小程序会自动降级为“GPS + 校内 POI”；用户开启室内增强且本地有指纹库时，会额外使用 Wi-Fi/BLE 本地指纹。
 
 ## 相似物品匹配
 

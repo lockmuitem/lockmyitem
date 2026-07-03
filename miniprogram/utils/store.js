@@ -290,16 +290,20 @@ function loadState() {
 
 function migrateState(previous) {
   const seed = createSeedState();
+  const previousUser = previous.currentUser || {};
+  const emailPrefix = previousUser.emailPrefix || extractEmailPrefix(previousUser.email || '');
+  const email = previousUser.email || (emailPrefix ? `${emailPrefix}@shanghaitech.edu.cn` : '');
+  const registered = Boolean(previousUser.registered || email || emailPrefix);
   return {
     ...seed,
     ...previous,
     currentUser: {
       ...seed.currentUser,
-      ...(previous.currentUser || {}),
-      email: (previous.currentUser && previous.currentUser.email) || '',
-      emailPrefix: extractEmailPrefix((previous.currentUser && previous.currentUser.email) || ''),
-      registered: Boolean(previous.currentUser && previous.currentUser.registered),
-      loginMethod: (previous.currentUser && previous.currentUser.loginMethod) || ''
+      ...previousUser,
+      email,
+      emailPrefix,
+      registered,
+      loginMethod: previousUser.loginMethod || (registered ? 'email' : '')
     },
     items: previous.items || [],
     comments: previous.comments || [],

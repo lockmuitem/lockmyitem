@@ -270,8 +270,7 @@ async function resolveTencentIndoor(event) {
     floor: data.floor || data.floorName || '',
     latitude: data.latitude || (data.location && data.location.lat) || null,
     longitude: data.longitude || (data.location && data.location.lng) || null,
-    confidence: data.confidence || data.score || 0,
-    raw: data
+    confidence: data.confidence || data.score || 0
   });
 }
 

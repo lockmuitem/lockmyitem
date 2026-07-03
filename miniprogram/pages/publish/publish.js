@@ -33,6 +33,7 @@ Page({
     locationCandidates: [],
     locating: false,
     classifying: false,
+    indoorPositioningEnabled: false,
     locationTip: '正在定位到上科大校内地点...',
     locationState: 'idle',
     locationMeta: '',
@@ -144,14 +145,27 @@ Page({
   },
 
   getPreciseCampusLocation() {
+    const meta = this.data.indoorPositioningEnabled
+      ? '将连续采样 3 次，并在你开启后采集 Wi-Fi/BLE 室内信号'
+      : '将连续采样 3 次；室内增强未开启，不采集 Wi-Fi/BLE 信号';
     this.setData({
       locating: true,
       locationState: 'locating',
-      locationMeta: '将连续采样 3 次，并尝试采集 Wi-Fi/BLE 室内信号',
+      locationMeta: meta,
       indoorMeta: '',
       locationTip: '正在获取精准位置...'
     });
     this.collectLocationSamples([], 0);
+  },
+
+  toggleIndoorPositioning(event) {
+    const enabled = Boolean(event.detail.value);
+    this.setData({
+      indoorPositioningEnabled: enabled,
+      indoorMeta: enabled
+        ? '已开启室内增强。重新定位时会采集 Wi-Fi/BLE 信号辅助判断校内地点。'
+        : '室内增强已关闭。不会采集或上传 Wi-Fi/BLE 信号。'
+    });
   },
 
   collectLocationSamples(samples, attempts) {
@@ -214,9 +228,23 @@ Page({
 
     this.setData({
       locationCandidates: candidates,
-      locationMeta: `定位精度 ${accuracy || '未知'}m · 正在融合室内 Wi-Fi/BLE 信号`,
-      indoorMeta: '室内信号采集中...'
+      locationMeta: this.data.indoorPositioningEnabled
+        ? `定位精度 ${accuracy || '未知'}m · 正在融合室内 Wi-Fi/BLE 信号`
+        : `定位精度 ${accuracy || '未知'}m · 室内增强未开启`,
+      indoorMeta: this.data.indoorPositioningEnabled ? '室内信号采集中...' : '如需楼内/楼层辅助判断，可手动开启室内增强后重新定位。'
     });
+
+    if (!this.data.indoorPositioningEnabled) {
+      this.applyFusedLocation(res, candidates, {
+        wifi: { ok: false, connected: null, list: [] },
+        ble: { ok: false, devices: [] },
+        tencentIndoor: { ok: false },
+        summary: '未开启室内增强，未采集 Wi-Fi/BLE 信号',
+        calibrated: false,
+        tencentReady: false
+      });
+      return;
+    }
 
     collectIndoorSignals(res).then((signals) => {
       this.applyFusedLocation(res, candidates, signals);
