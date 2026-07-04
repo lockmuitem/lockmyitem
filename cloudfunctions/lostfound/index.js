@@ -1,5 +1,6 @@
 const cloud = require('wx-server-sdk');
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -30,15 +31,32 @@ const CATEGORY_KEYWORDS = {
 const BAD_WORDS = ['辱骂', '广告', '诈骗', '加群'];
 
 const HUNYUAN_CONFIG = {
-  apiKey: process.env.HUNYUAN_API_KEY || process.env.MODEL_API_KEY || '',
+  apiKey: process.env.HUNYUAN_API_KEY
+    || process.env.TENCENTCLOUD_API_KEY
+    || process.env.TENCENT_HUNYUAN_API_KEY
+    || process.env.MODEL_API_KEY
+    || '',
   baseUrl: (process.env.HUNYUAN_BASE_URL || 'https://api.hunyuan.cloud.tencent.com/v1').replace(/\/$/, ''),
-  model: process.env.HUNYUAN_MODEL || 'hunyuan-vision'
+  model: process.env.HUNYUAN_MODEL || 'hunyuan-vision',
+  secretId: process.env.TENCENTCLOUD_SECRET_ID || process.env.TENCENT_SECRET_ID || '',
+  secretKey: process.env.TENCENTCLOUD_SECRET_KEY || process.env.TENCENT_SECRET_KEY || '',
+  tencentEndpoint: (process.env.TENCENT_HUNYUAN_ENDPOINT || 'https://hunyuan.tencentcloudapi.com').replace(/\/$/, ''),
+  tencentAction: 'ChatCompletions',
+  tencentVersion: '2023-09-01',
+  tencentService: 'hunyuan',
+  tencentRegion: process.env.TENCENTCLOUD_REGION || process.env.TENCENT_REGION || ''
 };
 
 const TENCENT_INDOOR_CONFIG = {
   endpoint: (process.env.TENCENT_INDOOR_API_URL || '').replace(/\/$/, ''),
   apiKey: process.env.TENCENT_INDOOR_API_KEY || process.env.TENCENT_MAP_KEY || '',
   campusId: process.env.TENCENT_INDOOR_CAMPUS_ID || 'shanghaitech'
+};
+
+const TENCENT_MAP_CONFIG = {
+  key: process.env.TENCENT_MAP_KEY || '',
+  sk: process.env.TENCENT_MAP_SK || process.env.TENCENT_MAP_SECRET_KEY || '',
+  networkUrl: process.env.TENCENT_MAP_NETWORK_URL || 'https://apis.map.qq.com/ws/location/v1/network'
 };
 
 function ok(data = {}) {
@@ -82,27 +100,88 @@ function parseJsonContent(content = '') {
 
 function normalizeHunyuanResult(result = {}) {
   return {
+    title: result.title || result.name || '',
     description: result.description || result.caption || result.visualDescription || '',
     category: result.category || '',
     tags: unique(result.tags || result.aiTags || result.keywords || []),
     colors: unique(result.colors || []),
     accessories: unique(result.accessories || []),
+    objects: unique(result.objects || result.yoloObjects || []),
     imageEmbedding: result.imageEmbedding || result.image_embedding || [],
     semanticEmbedding: result.semanticEmbedding || result.semantic_embedding || result.embedding || []
   };
 }
 
-async function callHunyuanVision(payload) {
-  const endpoint = `${HUNYUAN_CONFIG.baseUrl}/chat/completions`;
-  const prompt = [
+function normalizeImageBase64(imageBase64 = '', mimeType = 'image/jpeg') {
+  const value = String(imageBase64 || '').trim();
+  if (!value) return '';
+  if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(value)) return value;
+  return `data:${mimeType || 'image/jpeg'};base64,${value.replace(/^data:[^,]+,/, '')}`;
+}
+
+function sha256(value, encoding = 'hex') {
+  return crypto.createHash('sha256').update(value, 'utf8').digest(encoding);
+}
+
+function hmac(key, value, encoding) {
+  return crypto.createHmac('sha256', key).update(value, 'utf8').digest(encoding);
+}
+
+function formatUtcDate(timestamp) {
+  return new Date(timestamp * 1000).toISOString().slice(0, 10);
+}
+
+function signTencentCloudRequest(payloadText, timestamp) {
+  const endpointHost = new URL(HUNYUAN_CONFIG.tencentEndpoint).host;
+  const date = formatUtcDate(timestamp);
+  const canonicalHeaders = [
+    'content-type:application/json; charset=utf-8',
+    `host:${endpointHost}`,
+    `x-tc-action:${HUNYUAN_CONFIG.tencentAction.toLowerCase()}`
+  ].join('\n') + '\n';
+  const signedHeaders = 'content-type;host;x-tc-action';
+  const canonicalRequest = [
+    'POST',
+    '/',
+    '',
+    canonicalHeaders,
+    signedHeaders,
+    sha256(payloadText)
+  ].join('\n');
+  const credentialScope = `${date}/${HUNYUAN_CONFIG.tencentService}/tc3_request`;
+  const stringToSign = [
+    'TC3-HMAC-SHA256',
+    timestamp,
+    credentialScope,
+    sha256(canonicalRequest)
+  ].join('\n');
+  const secretDate = hmac(`TC3${HUNYUAN_CONFIG.secretKey}`, date);
+  const secretService = hmac(secretDate, HUNYUAN_CONFIG.tencentService);
+  const secretSigning = hmac(secretService, 'tc3_request');
+  const signature = hmac(secretSigning, stringToSign, 'hex');
+  return [
+    `TC3-HMAC-SHA256 Credential=${HUNYUAN_CONFIG.secretId}/${credentialScope}`,
+    `SignedHeaders=${signedHeaders}`,
+    `Signature=${signature}`
+  ].join(', ');
+}
+
+function buildVisionPrompt(hint = '') {
+  return [
     '你是上海科技大学校园失物招领系统的图像识别助手。',
     '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
+    '只提取物品信息，不要提到评论区、联系失主、领取流程或发布建议。',
     '必须只返回 JSON，不要 Markdown，不要解释。',
-    'JSON 字段：description, category, tags, colors, accessories。',
+    'JSON 字段：title, description, category, tags, colors, accessories, objects。',
     'category 从以下中文类别中选择：证件、电子产品、书本资料、衣物、钥匙、校园卡、雨伞、水杯、其他。',
-    'tags/colors/accessories 必须是中文字符串数组。',
-    `用户补充描述：${payload.hint || '无'}`
+    'title/description/tags/colors/accessories/objects 必须使用简体中文。',
+    `用户补充描述：${hint || '无'}`
   ].join('\n');
+}
+
+async function callOpenAICompatibleHunyuanVision(payload) {
+  const endpoint = `${HUNYUAN_CONFIG.baseUrl}/chat/completions`;
+  const prompt = buildVisionPrompt(payload.hint);
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -135,6 +214,58 @@ async function callHunyuanVision(payload) {
   return normalizeHunyuanResult(parseJsonContent(content || ''));
 }
 
+async function callTencentCloudHunyuanVision(payload) {
+  const endpointHost = new URL(HUNYUAN_CONFIG.tencentEndpoint).host;
+  const requestBody = {
+    Model: HUNYUAN_CONFIG.model,
+    Stream: false,
+    Temperature: 0.2,
+    Messages: [
+      {
+        Role: 'user',
+        Contents: [
+          { Type: 'text', Text: buildVisionPrompt(payload.hint) },
+          { Type: 'image_url', ImageUrl: { Url: payload.imageUrl } }
+        ]
+      }
+    ]
+  };
+  const payloadText = JSON.stringify(requestBody);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const headers = {
+    authorization: signTencentCloudRequest(payloadText, timestamp),
+    'content-type': 'application/json; charset=utf-8',
+    host: endpointHost,
+    'x-tc-action': HUNYUAN_CONFIG.tencentAction,
+    'x-tc-timestamp': String(timestamp),
+    'x-tc-version': HUNYUAN_CONFIG.tencentVersion
+  };
+  if (HUNYUAN_CONFIG.tencentRegion) headers['x-tc-region'] = HUNYUAN_CONFIG.tencentRegion;
+
+  const response = await fetch(HUNYUAN_CONFIG.tencentEndpoint, {
+    method: 'POST',
+    headers,
+    body: payloadText,
+    timeout: 30000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || (data.Response && data.Response.Error)) {
+    const error = data.Response && data.Response.Error;
+    const message = error && (error.Message || error.Code);
+    throw new Error(`混元识别失败 ${response.status}${message ? `: ${message}` : ''}`);
+  }
+  const choices = (data.Response && data.Response.Choices) || data.Choices || [];
+  const content = choices[0] && choices[0].Message && choices[0].Message.Content;
+  return normalizeHunyuanResult(parseJsonContent(content || ''));
+}
+
+async function callHunyuanVision(payload) {
+  if (HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey) {
+    return callTencentCloudHunyuanVision(payload);
+  }
+  return callOpenAICompatibleHunyuanVision(payload);
+}
+
 function mapTagsToCategory(tags = [], hint = '') {
   const source = `${tags.join(' ')} ${hint}`.toLowerCase();
   const categories = Object.keys(CATEGORY_KEYWORDS);
@@ -145,6 +276,157 @@ function mapTagsToCategory(tags = [], hint = '') {
     }
   }
   return '其他';
+}
+
+function transformLat(x, y) {
+  let ret = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+  ret += (20 * Math.sin(y * Math.PI) + 40 * Math.sin(y / 3 * Math.PI)) * 2 / 3;
+  ret += (160 * Math.sin(y / 12 * Math.PI) + 320 * Math.sin(y * Math.PI / 30)) * 2 / 3;
+  return ret;
+}
+
+function transformLng(x, y) {
+  let ret = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+  ret += (20 * Math.sin(x * Math.PI) + 40 * Math.sin(x / 3 * Math.PI)) * 2 / 3;
+  ret += (150 * Math.sin(x / 12 * Math.PI) + 300 * Math.sin(x / 30 * Math.PI)) * 2 / 3;
+  return ret;
+}
+
+function outOfChina(latitude, longitude) {
+  return longitude < 72.004 || longitude > 137.8347 || latitude < 0.8293 || latitude > 55.8271;
+}
+
+function wgs84ToGcj02(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!lat || !lng || outOfChina(lat, lng)) return { latitude: lat, longitude: lng };
+  const a = 6378245;
+  const ee = 0.00669342162296594323;
+  let dLat = transformLat(lng - 105, lat - 35);
+  let dLng = transformLng(lng - 105, lat - 35);
+  const radLat = lat / 180 * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+  dLng = (dLng * 180) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+  return { latitude: lat + dLat, longitude: lng + dLng };
+}
+
+function gcj02ToWgs84(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!lat || !lng || outOfChina(lat, lng)) return { latitude: lat, longitude: lng };
+  const gcj = wgs84ToGcj02(lat, lng);
+  return {
+    latitude: lat * 2 - gcj.latitude,
+    longitude: lng * 2 - gcj.longitude
+  };
+}
+
+function normalizeSignalRssi(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return -85;
+  if (number < 0) return Math.round(number);
+  return Math.round(-100 + Math.min(100, number) * 0.5);
+}
+
+function normalizeMac(value) {
+  return String(value || '').trim().replace(/[^a-fA-F0-9]/g, '').toLowerCase();
+}
+
+function tencentMapSignatureValue(value) {
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function buildTencentMapSig(pathname, payload) {
+  const query = Object.keys(payload)
+    .sort()
+    .map((key) => `${key}=${tencentMapSignatureValue(payload[key])}`)
+    .join('&');
+  return crypto.createHash('md5').update(`${pathname}?${query}${TENCENT_MAP_CONFIG.sk}`, 'utf8').digest('hex').toLowerCase();
+}
+
+function buildTencentMapPayload(event = {}) {
+  const gps = event.gps || {};
+  const coord = event.coordType === 'wgs84'
+    ? { latitude: gps.latitude, longitude: gps.longitude }
+    : gcj02ToWgs84(gps.latitude, gps.longitude);
+  const wifi = event.wifi || {};
+  const ble = event.ble || {};
+  const wifiEntries = []
+    .concat(wifi.connected ? [wifi.connected] : [])
+    .concat(wifi.list || []);
+  const wifiinfo = wifiEntries
+    .map((entry) => ({
+      mac: normalizeMac(entry.BSSID || entry.bssid || entry.mac),
+      rssi: normalizeSignalRssi(entry.signalStrength || entry.RSSI || entry.rssi)
+    }))
+    .filter((entry) => entry.mac)
+    .slice(0, 30);
+  const beaconinfo = (ble.devices || [])
+    .map((device) => ({
+      mac: normalizeMac(device.deviceId || device.mac),
+      rssi: normalizeSignalRssi(device.RSSI || device.rssi),
+      time: Date.now()
+    }))
+    .filter((entry) => entry.mac)
+    .slice(0, 30);
+
+  const payload = {
+    key: TENCENT_MAP_CONFIG.key,
+    device_id: event.deviceId || 'shanghaitech-findloss-cloud'
+  };
+  if (coord.latitude && coord.longitude) {
+    payload.gpsinfo = {
+      latitude: Number(coord.latitude),
+      longitude: Number(coord.longitude),
+      accuracy: Number(gps.accuracy) || 0,
+      speed: Number(gps.speed) || 0
+    };
+  }
+  if (wifiinfo.length) payload.wifiinfo = wifiinfo;
+  if (beaconinfo.length) payload.beaconinfo = beaconinfo;
+  return payload;
+}
+
+async function callTencentMapNetwork(event = {}) {
+  const payload = buildTencentMapPayload(event);
+  if (!payload.gpsinfo && !payload.wifiinfo && !payload.beaconinfo) {
+    throw new Error('缺少 GPS、Wi-Fi 或 BLE 信号');
+  }
+  const endpoint = new URL(TENCENT_MAP_CONFIG.networkUrl);
+  if (TENCENT_MAP_CONFIG.sk) {
+    endpoint.searchParams.set('sig', buildTencentMapSig(endpoint.pathname, payload));
+  }
+  const response = await fetch(endpoint.toString(), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    timeout: 8000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.status !== 0) {
+    throw new Error(data.message || `HTTP ${response.status}`);
+  }
+  const result = data.result || {};
+  const location = result.location || {};
+  const gcj = wgs84ToGcj02(location.latitude, location.longitude);
+  return {
+    provider: 'tencent-map-network',
+    latitude: Number(gcj.latitude) || null,
+    longitude: Number(gcj.longitude) || null,
+    wgs84Latitude: Number(location.latitude) || null,
+    wgs84Longitude: Number(location.longitude) || null,
+    accuracy: Number(location.accuracy) || 0,
+    confidence: location.accuracy ? Math.max(0, Math.min(1, 1 - Number(location.accuracy) / 300)) : 0,
+    address: result.address || '',
+    adInfo: result.ad_info || {},
+    requestId: data.request_id || ''
+  };
 }
 
 async function ensureUser(openid, profile = {}) {
@@ -192,14 +474,17 @@ async function listLocations(event) {
 }
 
 async function classifyImage(event) {
-  if (!HUNYUAN_CONFIG.apiKey) {
-    return fail('请先配置 HUNYUAN_API_KEY', 'MODEL_NOT_CONFIGURED');
+  if (!HUNYUAN_CONFIG.apiKey && !(HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey)) {
+    return fail('请先配置 HUNYUAN_API_KEY 或 TENCENT_SECRET_ID/TENCENT_SECRET_KEY', 'MODEL_NOT_CONFIGURED');
   }
-  if (!event.fileId && !event.imageUrl) {
-    return fail('缺少图片 fileId 或 imageUrl');
+  if (!event.fileId && !event.imageUrl && !event.imageBase64) {
+    return fail('缺少图片 fileId、imageUrl 或 imageBase64');
   }
 
   let imageUrl = event.imageUrl || '';
+  if (!imageUrl && event.imageBase64) {
+    imageUrl = normalizeImageBase64(event.imageBase64, event.mimeType || event.contentType || 'image/jpeg');
+  }
   if (!imageUrl && event.fileId) {
     const tempResult = await cloud.getTempFileURL({ fileList: [event.fileId] });
     const file = tempResult.fileList && tempResult.fileList[0];
@@ -216,28 +501,38 @@ async function classifyImage(event) {
   const aiTags = unique([
     ...semantic.tags,
     ...semantic.colors,
-    ...semantic.accessories
+    ...semantic.accessories,
+    ...semantic.objects
   ]);
   const category = semantic.category || mapTagsToCategory(aiTags, event.hint || semantic.description);
   const visualDescription = semantic.description || aiTags.join('、');
 
   return ok({
+    title: semantic.title || category,
     category,
     aiTags,
-    yoloObjects: [],
+    yoloObjects: semantic.objects,
     semanticTags: semantic.tags,
     visualDescription,
     imageEmbedding: semantic.imageEmbedding,
     semanticEmbedding: semantic.semanticEmbedding,
     modelSources: {
-      provider: 'tencent-hunyuan',
-      baseUrl: HUNYUAN_CONFIG.baseUrl,
+      provider: HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey ? 'tencentcloud-hunyuan' : 'tencent-hunyuan-compatible',
+      baseUrl: HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey ? HUNYUAN_CONFIG.tencentEndpoint : HUNYUAN_CONFIG.baseUrl,
       model: HUNYUAN_CONFIG.model
     }
   });
 }
 
 async function resolveTencentIndoor(event) {
+  if (TENCENT_MAP_CONFIG.key) {
+    try {
+      return ok(await callTencentMapNetwork(event));
+    } catch (error) {
+      return fail(`腾讯地图定位失败：${error.message || '服务不可用'}`, 'TENCENT_MAP_FAILED');
+    }
+  }
+
   if (!TENCENT_INDOOR_CONFIG.endpoint || !TENCENT_INDOOR_CONFIG.apiKey) {
     return fail('腾讯室内定位服务未配置', 'TENCENT_INDOOR_NOT_CONFIGURED');
   }
@@ -250,7 +545,9 @@ async function resolveTencentIndoor(event) {
     },
     body: JSON.stringify({
       campusId: TENCENT_INDOOR_CONFIG.campusId,
-      gps: event.gps || null
+      gps: event.gps || null,
+      wifi: event.wifi || {},
+      ble: event.ble || {}
     }),
     timeout: 8000
   });

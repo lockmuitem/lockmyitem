@@ -15,7 +15,18 @@
       <image wx:if="{{form.imageUrls.length}}" src="{{form.imageUrls[0]}}" mode="aspectFill" />
       <text wx:else>上传图片，可留空</text>
     </button>
-    <view wx:if="{{classifying}}" class="model-status">正在调用混元模型识别图片...</view>
+    <view wx:if="{{classifying}}" class="model-status">正在调用模型识别图片...</view>
+    <view wx:if="{{modelError}}" class="model-error">{{modelError}}</view>
+    <view wx:if="{{aiProcessSteps.length}}" class="ai-process">
+      <view class="ai-process-head">
+        <text>AI 识别过程</text>
+        <text>{{classifying ? '分析中' : '已更新'}}</text>
+      </view>
+      <view wx:for="{{aiProcessSteps}}" wx:key="key" class="ai-process-step {{item.status}}">
+        <text class="ai-step-dot"></text>
+        <text class="ai-step-text">{{item.text}}</text>
+      </view>
+    </view>
     <view wx:if="{{form.visualDescription}}" class="model-desc">{{form.visualDescription}}</view>
 
     <input class="field" placeholder="物品标题，可不填" value="{{form.title}}" bindinput="onInput" data-field="title" />
@@ -54,6 +65,21 @@
         </view>
         <button class="locate-button" loading="{{locating}}" bindtap="detectCampusLocation" aria-label="获取当前位置">{{locating ? '定位中' : '重新定位'}}</button>
       </view>
+      <view wx:if="{{locationConfirm}}" class="location-confirm">
+        <view class="location-confirm-row">
+          <text>{{locationConfirm.label}}</text>
+          <text>{{locationConfirm.name}}</text>
+        </view>
+        <view class="location-confirm-row">
+          <text>定位精度：</text>
+          <text>{{locationConfirm.accuracyText}}</text>
+        </view>
+        <view class="location-confirm-row">
+          <text>匹配置信度：</text>
+          <text>{{locationConfirm.confidenceText}}</text>
+        </view>
+        <text class="location-confirm-note">{{locationConfirm.confirmText}}</text>
+      </view>
     </view>
     <input class="field" placeholder="搜索上科大校内地点，如 图书馆、食堂、宿舍" value="{{locationKeyword}}" bindinput="searchLocation" />
     <button wx:if="{{form.locationId}}" class="clear-location" bindtap="clearLocation">不选择地点</button>
@@ -84,7 +110,7 @@
     </view>
 
     <view wx:if="{{potentialMatches.length}}" class="match-panel">
-      <view class="match-title">可能是你的物品</view>
+      <view class="match-title">可能是这几件</view>
       <view
         wx:for="{{potentialMatches}}"
         wx:key="_id"
