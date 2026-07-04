@@ -31,7 +31,7 @@
   },
   "compileType": "miniprogram",
   "libVersion": "3.4.10",
-  "appid": "touristappid",
+  "appid": "wx08c79d98482cbfb4",
   "projectname": "shanghaitech失物招领",
   "cloudfunctionRoot": "cloudfunctions/",
   "miniprogramRoot": "miniprogram/",
