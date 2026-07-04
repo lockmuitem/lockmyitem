@@ -1,6 +1,12 @@
 const { CATEGORIES } = require('../../utils/constants');
 const { createItem, searchLocations, classifyByText, findPotentialMatches } = require('../../utils/store');
 const { CAMPUS_CENTER, nearestCampusLocations } = require('../../utils/locations');
+const { collectIndoorSignals, fuseIndoorLocation } = require('../../utils/indoor-positioning');
+
+const LOCATE_SAMPLE_COUNT = 3;
+const CAMPUS_REJECT_DISTANCE = 1200;
+const CAMPUS_AUTO_DISTANCE = 120;
+const CAMPUS_AUTO_ACCURACY = 100;
 
 function initialForm() {
   return {
@@ -27,7 +33,11 @@ Page({
     locationCandidates: [],
     locating: false,
     classifying: false,
+    indoorPositioningEnabled: false,
     locationTip: '正在定位到上科大校内地点...',
+    locationState: 'idle',
+    locationMeta: '',
+    indoorMeta: '',
     potentialMatches: [],
     form: initialForm()
   },
@@ -82,7 +92,12 @@ Page({
   },
 
   detectCampusLocation() {
-    this.setData({ locating: true, locationTip: '正在申请位置权限...' });
+    this.setData({
+      locating: true,
+      locationState: 'locating',
+      locationMeta: '',
+      locationTip: '正在申请位置权限...'
+    });
     wx.getSetting({
       success: (setting) => {
         const authorized = setting.authSetting['scope.userLocation'];
@@ -130,45 +145,149 @@ Page({
   },
 
   getPreciseCampusLocation() {
-    this.setData({ locating: true, locationTip: '正在获取精准位置...' });
+    const meta = this.data.indoorPositioningEnabled
+      ? '将连续采样 3 次，并在你开启后采集 Wi-Fi/BLE 室内信号'
+      : '将连续采样 3 次；室内增强未开启，不采集 Wi-Fi/BLE 信号';
+    this.setData({
+      locating: true,
+      locationState: 'locating',
+      locationMeta: meta,
+      indoorMeta: '',
+      locationTip: '正在获取精准位置...'
+    });
+    this.collectLocationSamples([], 0);
+  },
+
+  toggleIndoorPositioning(event) {
+    const enabled = Boolean(event.detail.value);
+    this.setData({
+      indoorPositioningEnabled: enabled,
+      indoorMeta: enabled
+        ? '已开启室内增强。重新定位时会采集 Wi-Fi/BLE 信号辅助判断校内地点。'
+        : '室内增强已关闭。不会采集或上传 Wi-Fi/BLE 信号。'
+    });
+  },
+
+  collectLocationSamples(samples, attempts) {
     wx.getLocation({
       type: 'gcj02',
       isHighAccuracy: true,
       highAccuracyExpireTime: 4000,
-      success: (res) => this.applyLocatedPosition(res),
-      fail: () => this.handleLocationUnavailable('定位失败，请手动选择上科大校内地点'),
-      complete: () => {
-        this.setData({ locating: false });
+      success: (res) => {
+        const nextSamples = samples.concat(res);
+        if (nextSamples.length >= LOCATE_SAMPLE_COUNT) {
+          this.applyLocatedPosition(this.pickBestLocationSample(nextSamples));
+          return;
+        }
+        this.setData({ locationMeta: `已完成 ${nextSamples.length}/${LOCATE_SAMPLE_COUNT} 次定位采样` });
+        setTimeout(() => this.collectLocationSamples(nextSamples, attempts + 1), 450);
+      },
+      fail: () => {
+        if (samples.length) {
+          this.applyLocatedPosition(this.pickBestLocationSample(samples));
+          return;
+        }
+        this.handleLocationUnavailable('定位失败，请手动选择上科大校内地点');
       }
     });
+  },
+
+  pickBestLocationSample(samples = []) {
+    return samples
+      .map((sample) => {
+        const nearest = nearestCampusLocations(sample, 1)[0];
+        const accuracy = Number(sample.accuracy) || 9999;
+        const distance = nearest ? nearest.distance : 9999;
+        return {
+          ...sample,
+          campusDistance: distance,
+          campusScore: distance + accuracy * 0.7
+        };
+      })
+      .sort((a, b) => a.campusScore - b.campusScore)[0];
   },
 
   applyLocatedPosition(res) {
     const candidates = nearestCampusLocations(res, 8);
     const nearest = candidates[0];
     const accuracy = Math.round(Number(res.accuracy) || 0);
-    if (!nearest || nearest.distance > 1200) {
+    if (!nearest || nearest.distance > CAMPUS_REJECT_DISTANCE) {
       this.setData({
         locationCandidates: nearestCampusLocations(CAMPUS_CENTER, 8),
         locationTip: `当前位置距离上科大约 ${nearest ? nearest.distance : '较远'}m，请确认微信开发者工具或手机定位是否在校内`,
+        locationMeta: '未自动填充地点，避免把校外定位误判为校内地点',
+        indoorMeta: '',
+        locationState: 'error',
+        locating: false,
         'form.locationId': '',
         locationKeyword: '',
         locations: searchLocations()
       });
       return;
     }
-    const isLowAccuracy = accuracy >= 60 || nearest.distance > 80;
-    const tip = isLowAccuracy
-      ? `定位精度约 ${accuracy || '未知'}m，已预选 ${nearest.name}，请在候选地点中确认`
-      : `已按当前位置匹配到 ${nearest.name}，可在下方切换候选地点`;
+
+    this.setData({
+      locationCandidates: candidates,
+      locationMeta: this.data.indoorPositioningEnabled
+        ? `定位精度 ${accuracy || '未知'}m · 正在融合室内 Wi-Fi/BLE 信号`
+        : `定位精度 ${accuracy || '未知'}m · 室内增强未开启`,
+      indoorMeta: this.data.indoorPositioningEnabled ? '室内信号采集中...' : '如需楼内/楼层辅助判断，可手动开启室内增强后重新定位。'
+    });
+
+    if (!this.data.indoorPositioningEnabled) {
+      this.applyFusedLocation(res, candidates, {
+        wifi: { ok: false, connected: null, list: [] },
+        ble: { ok: false, devices: [] },
+        tencentIndoor: { ok: false },
+        summary: '未开启室内增强，未采集 Wi-Fi/BLE 信号',
+        calibrated: false,
+        tencentReady: false
+      });
+      return;
+    }
+
+    collectIndoorSignals(res).then((signals) => {
+      this.applyFusedLocation(res, candidates, signals);
+    });
+  },
+
+  applyFusedLocation(res, gpsCandidates, indoorSignals) {
+    const candidates = fuseIndoorLocation(gpsCandidates, indoorSignals);
+    const nearest = candidates[0];
+    const accuracy = Math.round(Number(res.accuracy) || 0);
+    const indoorMeta = indoorSignals.tencentReady || indoorSignals.calibrated
+      ? indoorSignals.summary
+      : `${indoorSignals.summary} · 指纹库待采集，当前以 GPS+校内 POI 为主`;
+    const shouldAutoSelect = accuracy <= CAMPUS_AUTO_ACCURACY && nearest.distance <= CAMPUS_AUTO_DISTANCE;
+    const tip = shouldAutoSelect
+      ? `已按当前位置匹配到 ${nearest.name}`
+      : `定位结果接近 ${nearest.name}，请在候选地点中确认`;
+    const signalText = nearest.signalScore ? ` · 室内信号加权 ${nearest.signalScore}` : '';
+    const locationMeta = `定位精度 ${accuracy || '未知'}m · 距离候选点 ${nearest.distance}m${signalText}`;
     this.setData({ locationCandidates: candidates });
-    this.setLocation(nearest, tip);
+    if (shouldAutoSelect) {
+      this.setLocation(nearest, tip, { state: 'ok', meta: locationMeta, indoorMeta, locating: false });
+      return;
+    }
+    this.setData({
+      locationTip: tip,
+      locationMeta,
+      indoorMeta,
+      locationState: 'warn',
+      locating: false,
+      'form.locationId': '',
+      locationKeyword: '',
+      locations: searchLocations()
+    });
   },
 
   handleLocationUnavailable(tip) {
     this.setData({
       locating: false,
       locationCandidates: nearestCampusLocations(CAMPUS_CENTER, 8),
+      locationState: 'error',
+      locationMeta: '可直接搜索或从候选地点中选择',
+      indoorMeta: '',
       locationTip: tip,
       'form.locationId': '',
       locationKeyword: '',
@@ -176,12 +295,16 @@ Page({
     });
   },
 
-  setLocation(location, tip) {
+  setLocation(location, tip, options = {}) {
     this.setData({
       'form.locationId': location._id,
       locationKeyword: location.name,
       locations: searchLocations(location.name),
-      locationTip: tip
+      locationTip: tip,
+      locationState: options.state || 'ok',
+      locationMeta: options.meta || '',
+      indoorMeta: options.indoorMeta || this.data.indoorMeta || '',
+      locating: options.locating === undefined ? this.data.locating : options.locating
     }, () => this.refreshPotentialMatches());
   },
 
@@ -205,6 +328,9 @@ Page({
       'form.locationId': '',
       locationKeyword: '',
       locationTip: '可重新定位或手动选择上科大校内地点',
+      locationState: 'idle',
+      locationMeta: '',
+      indoorMeta: '',
       locationCandidates: [],
       locations: searchLocations()
     });

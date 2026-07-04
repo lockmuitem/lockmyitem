@@ -4,13 +4,16 @@
     <text wx:else>{{item.category}}</text>
   </view>
 
-  <view class="card">
+  <view class="card detail-card">
     <view class="detail-head">
-      <text class="title">{{item.title}}</text>
+      <view class="title-block">
+        <text class="detail-kicker">{{item.type === 'lost' ? '寻物详情' : '招领详情'}}</text>
+        <text class="title">{{item.title}}</text>
+      </view>
       <text class="type-pill {{itemTypeClass}}">{{itemTypeText}}</text>
     </view>
     <text class="desc">{{item.description}}</text>
-    <view>
+    <view class="tag-row">
       <text class="tag active">{{item.category}}</text>
       <text wx:for="{{item.aiTags}}" wx:key="*this" class="tag">{{item}}</text>
     </view>

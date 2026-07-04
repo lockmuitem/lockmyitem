@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/auth/auth",
     "pages/publish/publish",
     "pages/map/map",
     "pages/found/found",
@@ -13,35 +14,43 @@
     "navigationBarTitleText": "上科大失物招领",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f6f7f9"
+    "backgroundColor": "#EEF5F8"
   },
   "tabBar": {
     "color": "#6b7280",
-    "selectedColor": "#0f766e",
-    "backgroundColor": "#ffffff",
+    "selectedColor": "#245B6B",
+    "backgroundColor": "#F8FBFC",
     "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "失物招领"
+        "text": "失物招领",
+        "iconPath": "assets/tabbar/found.png",
+        "selectedIconPath": "assets/tabbar/found-active.png"
       },
       {
         "pagePath": "pages/map/map",
-        "text": "寻物"
+        "text": "寻物",
+        "iconPath": "assets/tabbar/search.png",
+        "selectedIconPath": "assets/tabbar/search-active.png"
       },
       {
         "pagePath": "pages/found/found",
-        "text": "已找到"
+        "text": "已找到",
+        "iconPath": "assets/tabbar/done.png",
+        "selectedIconPath": "assets/tabbar/done-active.png"
       },
       {
         "pagePath": "pages/me/me",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "assets/tabbar/me.png",
+        "selectedIconPath": "assets/tabbar/me-active.png"
       }
     ]
   },
   "permission": {
     "scope.userLocation": {
-      "desc": "用于自动定位到上海科技大学校内地点，帮助快速填写失物或寻物位置"
+      "desc": "用于自动定位到上海科技大学校内地点；用户开启室内增强后可结合 Wi-Fi/BLE 信号辅助判断楼内位置"
     }
   },
   "requiredPrivateInfos": [

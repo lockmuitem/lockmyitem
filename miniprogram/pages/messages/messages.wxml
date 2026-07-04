@@ -1,9 +1,17 @@
 <view class="page">
-  <view class="section-title">消息中心</view>
+  <view class="surface-hero messages-hero">
+    <text class="surface-eyebrow">校内提醒</text>
+    <text class="surface-title">消息中心</text>
+    <text class="surface-subtitle">评论、感谢和系统提醒会集中出现在这里。</text>
+  </view>
+
   <view wx:if="{{notifications.length === 0}}" class="empty">暂无消息</view>
+
   <view wx:for="{{notifications}}" wx:key="_id" class="card notice" bindtap="goDetail" data-id="{{item.itemId}}">
-    <view class="notice-type">{{labels[item.type] || '通知'}}</view>
+    <view class="notice-head">
+      <view class="notice-type">{{item.typeLabel}}</view>
+      <text class="notice-time">{{item.createdAt}}</text>
+    </view>
     <text class="notice-content">{{item.content}}</text>
-    <text class="notice-time">{{item.createdAt}}</text>
   </view>
 </view>

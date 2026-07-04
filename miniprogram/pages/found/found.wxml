@@ -1,12 +1,23 @@
 <view class="page">
-  <view class="section-title">已回家分区</view>
-  <view class="muted intro">这里展示已经找回或归还的物品，避免其他同学继续误认。</view>
+  <view class="board-head">
+    <text class="app-title">已找到</text>
+    <text class="app-subtitle">归还成功的物品会留在这里，避免重复认领。</text>
+  </view>
+
+  <view class="summary-card">
+    <text class="summary-number">{{total}}</text>
+    <text class="summary-label">件物品已经回家</text>
+  </view>
+
   <view wx:if="{{items.length === 0}}" class="empty">还没有已找到记录</view>
-  <view wx:for="{{items}}" wx:key="_id" class="card found-card" bindtap="goDetail" data-id="{{item._id}}">
-    <view class="badge">已回家</view>
-    <view>
-      <text class="title">{{item.title}}</text>
-      <text class="meta">{{item.category}}{{item.locationName ? ' · ' + item.locationName : ''}}</text>
+
+  <view class="feed-panel" wx:if="{{items.length > 0}}">
+    <view wx:for="{{items}}" wx:key="_id" class="found-row" bindtap="goDetail" data-id="{{item._id}}">
+      <view class="badge">已回家</view>
+      <view class="item-copy">
+        <text class="title">{{item.title}}</text>
+        <text class="meta">{{item.category}}{{item.locationName ? ' · ' + item.locationName : ''}}</text>
+      </view>
     </view>
   </view>
 </view>

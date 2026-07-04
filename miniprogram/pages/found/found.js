@@ -2,11 +2,13 @@ const { listItems } = require('../../utils/store');
 
 Page({
   data: {
-    items: []
+    items: [],
+    total: 0
   },
 
   onShow() {
-    this.setData({ items: listItems({ status: 'returned' }) });
+    const items = listItems({ status: 'returned' });
+    this.setData({ items, total: items.length });
   },
 
   goDetail(event) {

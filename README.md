@@ -34,18 +34,25 @@
 - `pages/messages/messages`：消息中心。
 - `pages/me/me`：我的资料、邮箱、我的发布。
 
-## 自动定位与地点库
+## 精准定位与地点库
 
 发布页会调用：
 
 ```js
 wx.getLocation({
   type: 'gcj02',
-  isHighAccuracy: true
+  isHighAccuracy: true,
+  highAccuracyExpireTime: 4000
 })
 ```
 
-定位后会匹配最近的上科大校内地点，并展示最近候选地点供用户切换。
+当前定位链路已经升级为多源融合：
+
+1. 连续调用 3 次微信高精度定位，选取 `距离校内 POI + 定位精度` 综合分最低的一次。
+2. 默认不采集 Wi-Fi/BLE。用户在发布页手动开启“室内增强定位”并重新定位后，才会采集当前 Wi-Fi 信号和附近 BLE 设备作为室内定位辅助信号。
+3. 若 `miniprogram/utils/indoor-fingerprints.js` 中配置了真实 AP/BLE 指纹，会对对应校内地点加权排序。
+4. 若云函数配置了腾讯室内定位服务，会在用户开启室内增强后调用 `resolveTencentIndoor` action，把腾讯室内结果纳入候选地点排序。
+5. 当定位精度足够、最近地点足够近时自动填充；否则展示候选地点，要求用户确认，避免误判。
 
 地点库位于：
 
@@ -64,6 +71,41 @@ wx.getLocation({
 - 学生公寓、教师公寓、体育馆、游泳馆、会议中心、校门
 
 地图显示使用腾讯地图坐标系，代码中已包含 WGS84 到 GCJ-02 的转换逻辑。
+
+### Wi-Fi / BLE / 腾讯室内配置
+
+室内信号采集代码位于：
+
+- `miniprogram/utils/indoor-positioning.js`
+- `miniprogram/utils/indoor-fingerprints.js`
+
+隐私边界：室内增强默认关闭。关闭时不会采集或上传 Wi-Fi/BLE 信号；只有用户打开发布页里的“室内增强定位”开关并重新定位后，才会进行采集。
+当前仓库默认仅在本地使用 Wi-Fi/BLE 信号做指纹匹配，不把 BSSID 或 BLE deviceId 上传到云函数。若后续为腾讯室内定位开启云端信号解析，必须先完成微信开发者工具和微信公众平台后台的隐私接口声明。
+
+`indoor-fingerprints.js` 默认不写入真实 AP/BLE 数据。比赛现场或校内测试时，可以按地点采集真实信号后填入：
+
+```js
+library: {
+  wifi: [
+    { bssid: 'aa:bb:cc:dd:ee:ff', ssid: 'ShanghaiTech', weight: 32 },
+    { ssidKeyword: 'Library', weight: 16 }
+  ],
+  ble: [
+    { deviceId: 'AA:BB:CC:DD:EE:FF', nameKeyword: 'Library', weight: 28 }
+  ],
+  indoor: { building: '图书馆', floor: '2F' }
+}
+```
+
+腾讯室内定位通过云函数适配，避免在小程序端暴露密钥。需要配置云函数环境变量：
+
+```text
+TENCENT_INDOOR_API_URL=腾讯室内定位服务接口地址
+TENCENT_INDOOR_API_KEY=腾讯室内服务密钥或腾讯地图 Key
+TENCENT_INDOOR_CAMPUS_ID=shanghaitech
+```
+
+说明：腾讯地图室内能力通常需要室内图/室内定位服务开通和场地数据接入。未配置时，小程序会自动降级为“GPS + 校内 POI”；用户开启室内增强且本地有指纹库时，会额外使用 Wi-Fi/BLE 本地指纹。
 
 ## 相似物品匹配
 
@@ -146,6 +188,7 @@ HUNYUAN_BASE_URL=https://api.hunyuan.cloud.tencent.com/v1
 - `markReturned`
 - `undoReturned`
 - `reportContent`
+- `resolveTencentIndoor`
 
 ## 开发说明
 
@@ -156,9 +199,18 @@ HUNYUAN_BASE_URL=https://api.hunyuan.cloud.tencent.com/v1
 - 相似匹配：`miniprogram/utils/matcher.js`
 - 云函数：`cloudfunctions/lostfound/index.js`
 
+## 发布隐私检查
+
+正式提交审核前，需要在微信开发者工具和微信公众平台后台确认隐私声明与实际调用一致：
+
+- `wx.getLocation`：用于匹配上科大校内地点，仓库已在 `requiredPrivateInfos` 中声明 `getLocation`。
+- `wx.startWifi` / `wx.getConnectedWifi` / `wx.getWifiList`：仅在用户开启“室内增强定位”后采集，用于本地室内指纹匹配。
+- `wx.openBluetoothAdapter` / `wx.startBluetoothDevicesDiscovery`：仅在用户开启“室内增强定位”后采集，用于本地 BLE 指纹匹配。
+- 如果未来开启云端腾讯室内信号解析，需要在隐私声明中说明会上传 Wi-Fi/BLE 信号摘要，并完成对应后台审核。
+
 ## 已知限制
 
 - 图像识别依赖腾讯云混元 API，未配置 `HUNYUAN_API_KEY` 时会返回 `MODEL_NOT_CONFIGURED`。
 - 本地 mock 数据只存在于微信开发者工具本地缓存中。
 - 邮箱字段已保存，但邮件通知尚未接入实际发送服务。
-- 正式上线前需要配置真实 AppID、云开发环境和隐私接口声明。
+- 正式上线前需要配置真实 AppID、云开发环境，并在微信后台完成 Wi-Fi/BLE/设备信息相关隐私声明。

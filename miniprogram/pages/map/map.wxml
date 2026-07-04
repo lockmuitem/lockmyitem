@@ -1,10 +1,17 @@
 <view class="page">
-  <view class="hero lost-hero">
+  <view class="board-head">
     <view>
-      <text class="hero-title">寻物</text>
-      <text class="hero-subtitle">发布和查看同学正在寻找的物品。</text>
+      <text class="app-title">寻物登记</text>
+      <text class="app-subtitle">丢失物品后，先登记线索再等待匹配提醒</text>
     </view>
-    <button class="hero-action" bindtap="startPublish">发布寻物</button>
+  </view>
+
+  <view class="notice-banner lost" bindtap="startPublish">
+    <image class="notice-image" src="/assets/notice/campus-board.jpg" mode="aspectFill" />
+    <view class="notice-copy">
+      <text class="notice-title">丢了东西，先留下线索</text>
+      <text class="notice-subtitle">{{stats.total}} 条寻物正在等待匹配</text>
+    </view>
   </view>
 
   <scroll-view class="category-bar" scroll-x>
@@ -17,30 +24,34 @@
     >{{item}}</view>
   </scroll-view>
 
-  <view wx:if="{{items.length === 0}}" class="empty">暂时没有寻物信息</view>
-
-  <view wx:for="{{items}}" wx:key="_id" class="item-card" bindtap="goDetail" data-id="{{item._id}}">
-    <view class="image-box lost">
-      <image wx:if="{{item.thumbUrl}}" src="{{item.thumbUrl}}" mode="aspectFill" />
-      <text wx:else>{{item.category}}</text>
+  <view class="section-bar" wx:if="{{items.length > 0}}">
+    <view>
+      <text class="list-title">正在寻找 · {{stats.total}} 条</text>
+      <text class="list-subtitle">同学发布的寻物线索</text>
     </view>
-    <view class="item-main">
-      <view class="item-head">
-        <text class="item-title">{{item.title}}</text>
-        <text class="type-pill lost">寻物</text>
-      </view>
-      <text class="item-desc">{{item.description}}</text>
-      <view class="item-meta" wx:if="{{item.locationName || item.locationDetail}}">
-        <text>{{item.locationName}}</text>
-      </view>
-      <view>
-        <text class="tag">{{item.category}}</text>
-        <text wx:for="{{item.aiTags}}" wx:key="*this" class="tag light">{{item}}</text>
-      </view>
-    </view>
+    <button class="sort-button lost" bindtap="startPublish">发布</button>
   </view>
 
-  <view class="publish-fab lost" bindtap="startPublish">
-    <text class="plus">+</text>
+  <view wx:if="{{items.length === 0}}" class="empty">暂时没有寻物信息</view>
+
+  <view class="feed-panel" wx:if="{{items.length > 0}}">
+    <view wx:for="{{items}}" wx:key="_id" class="item-row" bindtap="goDetail" data-id="{{item._id}}">
+      <view class="image-box lost">
+        <image wx:if="{{item.thumbUrl}}" src="{{item.thumbUrl}}" mode="aspectFill" />
+        <text wx:else>{{item.category}}</text>
+      </view>
+      <view class="item-main">
+        <view class="item-head">
+          <text class="item-title">{{item.title}}</text>
+          <text class="type-pill lost">寻物中</text>
+        </view>
+        <text class="item-desc">{{item.description}}</text>
+        <view class="item-meta" wx:if="{{item.locationName || item.locationDetail}}">
+          <text class="pin-dot lost"></text>
+          <text>{{item.locationName}}</text>
+          <text class="tag light">{{item.category}}</text>
+        </view>
+      </view>
+    </view>
   </view>
 </view>

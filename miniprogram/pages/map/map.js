@@ -5,7 +5,11 @@ Page({
   data: {
     categories: CATEGORIES,
     activeCategory: '全部',
-    items: []
+    items: [],
+    stats: {
+      total: 0,
+      today: 0
+    }
   },
 
   onShow() {
@@ -13,8 +17,14 @@ Page({
   },
 
   loadItems() {
+    const activeItems = listItems({ status: 'active', type: 'lost' });
+    const todayPrefix = new Date().toISOString().slice(0, 10);
     this.setData({
-      items: listItems({ category: this.data.activeCategory, status: 'active', type: 'lost' })
+      items: listItems({ category: this.data.activeCategory, status: 'active', type: 'lost' }),
+      stats: {
+        total: activeItems.length,
+        today: activeItems.filter((item) => String(item.createdAt || '').slice(0, 10) === todayPrefix).length
+      }
     });
   },
 

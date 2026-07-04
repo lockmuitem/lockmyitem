@@ -35,6 +35,12 @@ const HUNYUAN_CONFIG = {
   model: process.env.HUNYUAN_MODEL || 'hunyuan-vision'
 };
 
+const TENCENT_INDOOR_CONFIG = {
+  endpoint: (process.env.TENCENT_INDOOR_API_URL || '').replace(/\/$/, ''),
+  apiKey: process.env.TENCENT_INDOOR_API_KEY || process.env.TENCENT_MAP_KEY || '',
+  campusId: process.env.TENCENT_INDOOR_CAMPUS_ID || 'shanghaitech'
+};
+
 function ok(data = {}) {
   return { ok: true, data };
 }
@@ -231,6 +237,41 @@ async function classifyImage(event) {
   });
 }
 
+async function resolveTencentIndoor(event) {
+  if (!TENCENT_INDOOR_CONFIG.endpoint || !TENCENT_INDOOR_CONFIG.apiKey) {
+    return fail('腾讯室内定位服务未配置', 'TENCENT_INDOOR_NOT_CONFIGURED');
+  }
+
+  const response = await fetch(TENCENT_INDOOR_CONFIG.endpoint, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${TENCENT_INDOOR_CONFIG.apiKey}`,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      campusId: TENCENT_INDOOR_CONFIG.campusId,
+      gps: event.gps || null
+    }),
+    timeout: 8000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data.message || (data.error && data.error.message) || `HTTP ${response.status}`;
+    return fail(`腾讯室内定位失败：${message}`, 'TENCENT_INDOOR_FAILED');
+  }
+
+  return ok({
+    provider: 'tencent-map-indoor',
+    campusId: TENCENT_INDOOR_CONFIG.campusId,
+    locationId: data.locationId || data.poiId || '',
+    building: data.building || data.buildingName || '',
+    floor: data.floor || data.floorName || '',
+    latitude: data.latitude || (data.location && data.location.lat) || null,
+    longitude: data.longitude || (data.location && data.location.lng) || null,
+    confidence: data.confidence || data.score || 0
+  });
+}
+
 async function createItem(event, context) {
   const payload = event.payload || {};
   if (!(payload.imageUrls || []).length && !payload.category) return fail('请上传图片或选择分类');
@@ -373,6 +414,8 @@ exports.main = async (event) => {
         return createItem(event, context);
       case 'classifyImage':
         return classifyImage(event);
+      case 'resolveTencentIndoor':
+        return resolveTencentIndoor(event);
       case 'listItems':
         return listItems(event);
       case 'getItemDetail':
