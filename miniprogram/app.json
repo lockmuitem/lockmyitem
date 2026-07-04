@@ -50,7 +50,7 @@
   },
   "permission": {
     "scope.userLocation": {
-      "desc": "用于自动定位到上海科技大学校内地点；用户开启室内增强后可结合 Wi-Fi/BLE 信号辅助判断楼内位置"
+      "desc": "用于推荐附近校内地点"
     }
   },
   "requiredPrivateInfos": [
