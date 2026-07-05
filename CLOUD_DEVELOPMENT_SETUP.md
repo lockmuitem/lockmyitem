@@ -6,11 +6,10 @@ Mini program cloud environment:
 cloud1-d9gnyuxf5b44b6b92
 ```
 
-The mini program now calls `cloudfunctions/lostfound` for image recognition and indoor positioning when these values in `miniprogram/app.js` are empty:
+The mini program now calls `cloudfunctions/lostfound` for image recognition when this value in `miniprogram/app.js` is empty:
 
 ```js
 const MODEL_API_URL = '';
-const INDOOR_API_URL = '';
 ```
 
 ## Cloud Function Environment Variables
@@ -22,10 +21,6 @@ TENCENT_SECRET_ID=your-secret-id
 TENCENT_SECRET_KEY=your-secret-key
 HUNYUAN_MODEL=hunyuan-vision
 TENCENT_HUNYUAN_ENDPOINT=https://hunyuan.tencentcloudapi.com
-
-TENCENT_MAP_KEY=your-map-key
-TENCENT_MAP_SK=your-map-sk
-TENCENT_MAP_NETWORK_URL=https://apis.map.qq.com/ws/location/v1/network
 ```
 
 Optional OpenAI-compatible Hunyuan mode:
@@ -44,7 +39,7 @@ If both Tencent Cloud `SecretId/SecretKey` and `HUNYUAN_API_KEY` exist, the clou
 2. Make sure CloudBase environment is `cloud1-d9gnyuxf5b44b6b92`.
 3. Right-click `cloudfunctions/lostfound`.
 4. Choose `Upload and deploy: cloud install dependencies`.
-5. Recompile the mini program and test image recognition plus indoor positioning.
+5. Recompile the mini program and test image recognition.
 
 ## Timeout
 
