@@ -1,7 +1,9 @@
 const { CATEGORIES } = require('../../utils/constants');
 const { createItem, searchLocations, classifyByText, findPotentialMatches } = require('../../utils/store');
+const { CAMPUS_CENTER, nearestCampusLocations } = require('../../utils/locations');
 
 const COMMON_LOCATION_LIMIT = 10;
+const MAP_PICKER_MAX_CAMPUS_DISTANCE = 1600;
 
 function initialForm() {
   return {
@@ -201,6 +203,41 @@ function commonLocations() {
   }));
 }
 
+function getLocationPickerPlugin() {
+  if (typeof requirePlugin !== 'function') return null;
+  try {
+    return requirePlugin('chooseLocation');
+  } catch (error) {
+    return null;
+  }
+}
+
+function normalizePickedLocation(location = {}) {
+  const latitude = Number(location.latitude || location.lat);
+  const longitude = Number(location.longitude || location.lng);
+  return {
+    ...location,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null
+  };
+}
+
+function pickedLocationText(location = {}) {
+  return unique([location.name, location.address, location.city]).join(' · ') || '地图选点';
+}
+
+function matchCampusLocationByText(location = {}) {
+  const source = `${location.name || ''} ${location.address || ''}`.toLowerCase();
+  if (!source.trim()) return null;
+  return searchLocations().find((campusLocation) => {
+    const aliases = [campusLocation.name].concat(campusLocation.aliases || []);
+    return aliases.some((alias) => {
+      const value = String(alias || '').toLowerCase();
+      return value && (source.includes(value) || value.includes(source.trim()));
+    });
+  });
+}
+
 function buildManualLocationConfirm(location) {
   return {
     label: '人工确认：',
@@ -243,6 +280,15 @@ Page({
       locationCandidates: commonLocations(),
       locations: searchLocations()
     });
+  },
+
+  onShow() {
+    this.consumeMapPickerResult();
+  },
+
+  onUnload() {
+    const plugin = getLocationPickerPlugin();
+    if (plugin && plugin.setLocation) plugin.setLocation(null);
   },
 
   setType(event) {
@@ -300,9 +346,125 @@ Page({
     });
   },
 
+  getLocationPickerConfig() {
+    const app = getApp();
+    const cached = {
+      key: app.globalData.locationPickerKey || '',
+      referer: app.globalData.locationPickerReferer || 'LockMyItem',
+      category: app.globalData.locationPickerCategory || '大学,餐饮,生活服务'
+    };
+    if (cached.key) return Promise.resolve(cached);
+    if (!app.globalData.cloudReady || !wx.cloud) return Promise.resolve(cached);
+    return new Promise((resolve) => {
+      wx.cloud.callFunction({
+        name: 'lostfound',
+        data: { action: 'getPublicConfig' },
+        success: (res) => {
+          const config = res.result && res.result.data && res.result.data.locationPicker;
+          const nextConfig = {
+            key: (config && config.key) || cached.key,
+            referer: (config && config.referer) || cached.referer,
+            category: (config && config.category) || cached.category
+          };
+          app.globalData.locationPickerKey = nextConfig.key;
+          app.globalData.locationPickerReferer = nextConfig.referer;
+          app.globalData.locationPickerCategory = nextConfig.category;
+          resolve(nextConfig);
+        },
+        fail: () => resolve(cached)
+      });
+    });
+  },
+
+  openLocationPicker() {
+    this.getLocationPickerConfig().then((config) => {
+      if (!config.key) {
+        wx.showToast({ title: '请先配置地图选点Key', icon: 'none' });
+        return;
+      }
+      const location = JSON.stringify({
+        latitude: CAMPUS_CENTER.latitude,
+        longitude: CAMPUS_CENTER.longitude
+      });
+      const params = [
+        `key=${encodeURIComponent(config.key)}`,
+        `referer=${encodeURIComponent(config.referer || 'LockMyItem')}`,
+        `location=${encodeURIComponent(location)}`,
+        `category=${encodeURIComponent(config.category || '大学,餐饮,生活服务')}`
+      ].join('&');
+      wx.navigateTo({
+        url: `plugin://chooseLocation/index?${params}`,
+        fail: () => wx.showToast({ title: '地图选点插件未启用', icon: 'none' })
+      });
+    });
+  },
+
+  consumeMapPickerResult() {
+    const plugin = getLocationPickerPlugin();
+    if (!plugin || !plugin.getLocation) return;
+    const picked = normalizePickedLocation(plugin.getLocation() || {});
+    if (!picked.name && !picked.address && !picked.latitude && !picked.longitude) return;
+    if (plugin.setLocation) plugin.setLocation(null);
+    this.applyMapPickedLocation(picked);
+  },
+
+  applyMapPickedLocation(picked) {
+    const detail = pickedLocationText(picked);
+    const textMatched = matchCampusLocationByText(picked);
+    if (textMatched) {
+      this.setLocation(textMatched, `地图选点已匹配到 ${textMatched.name}`, {
+        meta: `地图选点：${detail}`,
+        detail,
+        confirm: {
+          ...buildManualLocationConfirm(textMatched),
+          label: '地图选点：',
+          confirmText: '已根据地图选点匹配到校内地点，请确认后发布'
+        }
+      });
+      return;
+    }
+
+    if (!picked.latitude || !picked.longitude) {
+      this.setData({
+        locationState: 'warn',
+        locationTip: '地图选点未返回坐标，请搜索校内地点或重新选点',
+        locationMeta: `地图选点：${detail}`,
+        locationConfirm: null
+      });
+      return;
+    }
+
+    const candidates = nearestCampusLocations(picked, 6);
+    const nearest = candidates[0];
+    if (!nearest || nearest.distance > MAP_PICKER_MAX_CAMPUS_DISTANCE) {
+      this.setData({
+        locationCandidates: candidates.length ? candidates : commonLocations(),
+        locationState: 'warn',
+        locationTip: '地图选点距离校内地点较远，请确认后从候选地点中选择',
+        locationMeta: `地图选点：${detail}`,
+        locationConfirm: null,
+        'form.locationId': '',
+        'form.locationDetail': detail
+      });
+      return;
+    }
+
+    this.setLocation(nearest, `地图选点已匹配到 ${nearest.name}`, {
+      meta: `地图选点：${detail} · 距校内地点 ${nearest.distance}m`,
+      detail,
+      confirm: {
+        ...buildManualLocationConfirm(nearest),
+        label: '地图选点：',
+        confirmText: '已根据地图选点匹配到校内地点，请确认后发布'
+      }
+    });
+    this.setData({ locationCandidates: candidates });
+  },
+
   setLocation(location, tip, options = {}) {
     this.setData({
       'form.locationId': location._id,
+      'form.locationDetail': options.detail || '',
       locationKeyword: location.name,
       locations: searchLocations(location.name),
       locationTip: tip,
@@ -334,6 +496,7 @@ Page({
   clearLocation() {
     this.setData({
       'form.locationId': '',
+      'form.locationDetail': '',
       locationKeyword: '',
       locationTip: '请选择发现或丢失的大致校内地点',
       locationState: 'idle',

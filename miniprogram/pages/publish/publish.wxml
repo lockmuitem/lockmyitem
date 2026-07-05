@@ -55,7 +55,10 @@
           <text class="location-tip">{{locationTip}}</text>
           <text wx:if="{{locationMeta}}" class="location-meta">{{locationMeta}}</text>
         </view>
-        <button class="locate-button" bindtap="showCommonLocations" aria-label="显示常用校内地点">常用地点</button>
+        <view class="location-actions">
+          <button class="map-picker-button" bindtap="openLocationPicker" aria-label="打开地图选点">地图选点</button>
+          <button class="locate-button" bindtap="showCommonLocations" aria-label="显示常用校内地点">常用地点</button>
+        </view>
       </view>
       <view wx:if="{{locationConfirm}}" class="location-confirm">
         <view class="location-confirm-row">
