@@ -310,16 +310,6 @@ async function listLocations(event) {
   return ok(result.data);
 }
 
-async function getPublicConfig() {
-  return ok({
-    locationPicker: {
-      key: process.env.TENCENT_MAP_KEY || process.env.LOCATION_PICKER_KEY || '',
-      referer: process.env.TENCENT_MAP_REFERER || 'LockMyItem',
-      category: process.env.TENCENT_MAP_CATEGORY || '大学,餐饮,生活服务'
-    }
-  });
-}
-
 async function classifyImage(event) {
   if (!HUNYUAN_CONFIG.apiKey && !(HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey)) {
     return fail('请先配置 HUNYUAN_API_KEY 或 TENCENT_SECRET_ID/TENCENT_SECRET_KEY', 'MODEL_NOT_CONFIGURED');
@@ -519,8 +509,6 @@ exports.main = async (event) => {
         return getItemDetail(event);
       case 'listLocations':
         return listLocations(event);
-      case 'getPublicConfig':
-        return getPublicConfig();
       case 'createComment':
         return createComment(event, context);
       case 'sendThanks':

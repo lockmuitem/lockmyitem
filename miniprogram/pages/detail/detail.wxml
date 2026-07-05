@@ -42,7 +42,6 @@
       enable-zoom="{{true}}"
       enable-scroll="{{true}}"
       enable-rotate="{{false}}"
-      show-location="{{false}}"
     />
     <text class="map-note">地图为辅助定位，具体位置以上方校内建筑与附近地点为准。</text>
   </view>

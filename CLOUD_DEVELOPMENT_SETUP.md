@@ -21,13 +21,7 @@ TENCENT_SECRET_ID=your-secret-id
 TENCENT_SECRET_KEY=your-secret-key
 HUNYUAN_MODEL=hunyuan-vision
 TENCENT_HUNYUAN_ENDPOINT=https://hunyuan.tencentcloudapi.com
-
-TENCENT_MAP_KEY=your-tencent-location-service-key
-TENCENT_MAP_REFERER=LockMyItem
-TENCENT_MAP_CATEGORY=大学,餐饮,生活服务
 ```
-
-`TENCENT_MAP_KEY` is used only by the Tencent Location Service location picker plugin. Do not configure or commit `TENCENT_MAP_SK`; the current mini program does not need Tencent Map request signing.
 
 Optional OpenAI-compatible Hunyuan mode:
 

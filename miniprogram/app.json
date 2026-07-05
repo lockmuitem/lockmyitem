@@ -48,17 +48,6 @@
       }
     ]
   },
-  "plugins": {
-    "chooseLocation": {
-      "version": "1.0.0",
-      "provider": "wx76a9a06e5b4e693e"
-    }
-  },
-  "permission": {
-    "scope.userLocation": {
-      "desc": "用于地图手动选点"
-    }
-  },
   "sitemapLocation": "sitemap.json",
   "style": "v2",
   "lazyCodeLoading": "requiredComponents"

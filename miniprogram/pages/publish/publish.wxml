@@ -56,9 +56,23 @@
           <text wx:if="{{locationMeta}}" class="location-meta">{{locationMeta}}</text>
         </view>
         <view class="location-actions">
-          <button class="map-picker-button" bindtap="openLocationPicker" aria-label="打开地图选点">地图选点</button>
+          <button class="map-picker-button" bindtap="openCampusMap" aria-label="打开校内地图选择地点">地图选择</button>
           <button class="locate-button" bindtap="showCommonLocations" aria-label="显示常用校内地点">常用地点</button>
         </view>
+      </view>
+      <view wx:if="{{showCampusMap}}" class="campus-map-shell">
+        <map
+          class="campus-map"
+          latitude="{{mapLatitude}}"
+          longitude="{{mapLongitude}}"
+          scale="{{mapScale}}"
+          markers="{{campusMapMarkers}}"
+          bindmarkertap="selectMapMarker"
+          enable-zoom="{{true}}"
+          enable-scroll="{{true}}"
+          enable-rotate="{{false}}"
+        />
+        <text class="campus-map-note">点击地图上的校内地点标记完成选择。</text>
       </view>
       <view wx:if="{{locationConfirm}}" class="location-confirm">
         <view class="location-confirm-row">
