@@ -55,7 +55,7 @@
           <text class="location-tip">{{locationTip}}</text>
           <text wx:if="{{locationMeta}}" class="location-meta">{{locationMeta}}</text>
         </view>
-        <button class="locate-button" loading="{{locating}}" bindtap="detectCampusLocation" aria-label="获取当前位置">{{locating ? '定位中' : '重新定位'}}</button>
+        <button class="locate-button" bindtap="showCommonLocations" aria-label="显示常用校内地点">常用地点</button>
       </view>
       <view wx:if="{{locationConfirm}}" class="location-confirm">
         <view class="location-confirm-row">
@@ -63,12 +63,8 @@
           <text>{{locationConfirm.name}}</text>
         </view>
         <view class="location-confirm-row">
-          <text>定位精度：</text>
-          <text>{{locationConfirm.accuracyText}}</text>
-        </view>
-        <view class="location-confirm-row">
-          <text>匹配置信度：</text>
-          <text>{{locationConfirm.confidenceText}}</text>
+          <text>地点区域：</text>
+          <text>{{locationConfirm.areaText}}</text>
         </view>
         <text class="location-confirm-note">{{locationConfirm.confirmText}}</text>
       </view>

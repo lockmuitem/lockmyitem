@@ -48,14 +48,6 @@
       }
     ]
   },
-  "permission": {
-    "scope.userLocation": {
-      "desc": "用于推荐附近校内地点"
-    }
-  },
-  "requiredPrivateInfos": [
-    "getLocation"
-  ],
   "sitemapLocation": "sitemap.json",
   "style": "v2",
   "lazyCodeLoading": "requiredComponents"
