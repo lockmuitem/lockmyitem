@@ -47,6 +47,12 @@ const HUNYUAN_CONFIG = {
   tencentRegion: process.env.TENCENTCLOUD_REGION || process.env.TENCENT_REGION || ''
 };
 
+const TENCENT_MAP_CONFIG = {
+  key: process.env.TENCENT_MAP_KEY || '',
+  sk: process.env.TENCENT_MAP_SK || process.env.TENCENT_MAP_SECRET_KEY || '',
+  networkUrl: process.env.TENCENT_MAP_NETWORK_URL || 'https://apis.map.qq.com/ws/location/v1/network'
+};
+
 function ok(data = {}) {
   return { ok: true, data };
 }
@@ -264,6 +270,100 @@ function mapTagsToCategory(tags = [], hint = '') {
     }
   }
   return '其他';
+}
+
+function normalizeSignalRssi(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return -85;
+  if (number < 0) return Math.round(number);
+  return Math.round(-100 + Math.min(100, number) * 0.5);
+}
+
+function normalizeMac(value) {
+  return String(value || '').trim().replace(/[^a-fA-F0-9]/g, '').toLowerCase();
+}
+
+function tencentMapSignatureValue(value) {
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function buildTencentMapSig(pathname, payload) {
+  const query = Object.keys(payload)
+    .sort()
+    .map((key) => `${key}=${tencentMapSignatureValue(payload[key])}`)
+    .join('&');
+  return crypto.createHash('md5').update(`${pathname}?${query}${TENCENT_MAP_CONFIG.sk}`, 'utf8').digest('hex').toLowerCase();
+}
+
+function buildIndoorNetworkPayload(event = {}) {
+  const wifi = event.wifi || {};
+  const ble = event.ble || {};
+  const wifiEntries = []
+    .concat(wifi.connected ? [wifi.connected] : [])
+    .concat(wifi.list || []);
+  const wifiinfo = wifiEntries
+    .map((entry) => ({
+      mac: normalizeMac(entry.BSSID || entry.bssid || entry.mac),
+      rssi: normalizeSignalRssi(entry.signalStrength || entry.RSSI || entry.rssi)
+    }))
+    .filter((entry) => entry.mac)
+    .slice(0, 30);
+  const beaconinfo = (ble.devices || [])
+    .map((device) => ({
+      mac: normalizeMac(device.deviceId || device.mac),
+      rssi: normalizeSignalRssi(device.RSSI || device.rssi),
+      time: Date.now()
+    }))
+    .filter((entry) => entry.mac)
+    .slice(0, 30);
+  const payload = {
+    key: TENCENT_MAP_CONFIG.key,
+    device_id: event.deviceId || 'shanghaitech-findloss-indoor'
+  };
+  if (wifiinfo.length) payload.wifiinfo = wifiinfo;
+  if (beaconinfo.length) payload.beaconinfo = beaconinfo;
+  return payload;
+}
+
+async function resolveIndoorSignals(event = {}) {
+  if (!TENCENT_MAP_CONFIG.key) {
+    return fail('室内增强定位未配置 TENCENT_MAP_KEY', 'INDOOR_NOT_CONFIGURED');
+  }
+  const payload = buildIndoorNetworkPayload(event);
+  if (!payload.wifiinfo && !payload.beaconinfo) {
+    return fail('未采集到可用于室内增强定位的 Wi-Fi/BLE 信号', 'INDOOR_SIGNAL_EMPTY');
+  }
+  const endpoint = new URL(TENCENT_MAP_CONFIG.networkUrl);
+  if (TENCENT_MAP_CONFIG.sk) {
+    endpoint.searchParams.set('sig', buildTencentMapSig(endpoint.pathname, payload));
+  }
+  const response = await fetch(endpoint.toString(), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    timeout: 8000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.status !== 0) {
+    return fail(data.message || `室内增强定位失败 HTTP ${response.status}`, 'INDOOR_NETWORK_FAILED');
+  }
+  const result = data.result || {};
+  const location = result.location || {};
+  return ok({
+    provider: 'tencent-map-network',
+    latitude: Number(location.latitude) || null,
+    longitude: Number(location.longitude) || null,
+    accuracy: Number(location.accuracy) || 0,
+    confidence: location.accuracy ? Math.max(0, Math.min(1, 1 - Number(location.accuracy) / 300)) : 0,
+    address: result.address || '',
+    adInfo: result.ad_info || {},
+    requestId: data.request_id || '',
+    signalCount: {
+      wifi: (payload.wifiinfo || []).length,
+      ble: (payload.beaconinfo || []).length
+    }
+  });
 }
 
 async function ensureUser(openid, profile = {}) {
@@ -503,6 +603,8 @@ exports.main = async (event) => {
         return createItem(event, context);
       case 'classifyImage':
         return classifyImage(event);
+      case 'resolveIndoorSignals':
+        return resolveIndoorSignals(event);
       case 'listItems':
         return listItems(event);
       case 'getItemDetail':

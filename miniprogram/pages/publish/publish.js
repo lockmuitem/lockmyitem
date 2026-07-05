@@ -1,8 +1,10 @@
 const { CATEGORIES } = require('../../utils/constants');
 const { createItem, searchLocations, classifyByText, findPotentialMatches } = require('../../utils/store');
-const { CAMPUS_CENTER, LOCATIONS } = require('../../utils/locations');
+const { CAMPUS_CENTER, LOCATIONS, nearestCampusLocations } = require('../../utils/locations');
+const { collectIndoorSignals } = require('../../utils/indoor-signals');
 
 const COMMON_LOCATION_LIMIT = 10;
+const INDOOR_MATCH_DISTANCE = 1600;
 
 function initialForm() {
   return {
@@ -242,6 +244,8 @@ Page({
     locationCandidates: commonLocations(),
     locating: false,
     classifying: false,
+    indoorLocating: false,
+    indoorMeta: '',
     locationTip: '请选择发现或丢失的大致校内地点',
     locationState: 'idle',
     locationMeta: '不调用位置接口，可搜索地点或从常用地点中选择',
@@ -341,6 +345,64 @@ Page({
     });
   },
 
+  tryIndoorEnhancedLocation() {
+    this.setData({
+      indoorLocating: true,
+      locationState: 'idle',
+      locationTip: '正在进行室内增强调用...',
+      locationMeta: '仅采集 Wi-Fi/BLE 信号，不调用普通定位',
+      indoorMeta: '正在采集室内信号...',
+      showCampusMap: false,
+      locationCandidates: []
+    });
+    collectIndoorSignals().then((signals) => this.applyIndoorSignals(signals));
+  },
+
+  applyIndoorSignals(signals = {}) {
+    const network = signals.network || {};
+    const summary = signals.summary || '室内增强调用完成';
+    if (network.ok && network.data && network.data.latitude && network.data.longitude) {
+      const candidates = nearestCampusLocations(network.data, 6);
+      const nearest = candidates[0];
+      const accuracy = Math.round(Number(network.data.accuracy) || 0);
+      const meta = `${summary} · 云端返回精度 ${accuracy || '未知'}m`;
+      if (nearest && nearest.distance <= INDOOR_MATCH_DISTANCE) {
+        this.setLocation(nearest, `室内增强匹配到 ${nearest.name}`, {
+          meta: `${meta} · 距校内地点 ${nearest.distance}m`,
+          detail: '室内增强定位',
+          confirm: {
+            ...buildManualLocationConfirm(nearest),
+            label: '室内增强：',
+            confirmText: '已根据室内增强结果匹配校内地点，请确认后发布'
+          }
+        });
+        this.setData({
+          indoorLocating: false,
+          indoorMeta: meta,
+          locationCandidates: candidates
+        });
+        return;
+      }
+      this.setData({
+        indoorLocating: false,
+        indoorMeta: `${meta} · 距校内地点较远，请手动确认`,
+        locationState: 'warn',
+        locationTip: '室内增强返回位置偏离校内地点，请从候选地点中选择',
+        locationMeta: meta,
+        locationCandidates: candidates.length ? candidates : commonLocations()
+      });
+      return;
+    }
+    this.setData({
+      indoorLocating: false,
+      indoorMeta: `${summary} · ${network.reason || '云端未返回坐标'}`,
+      locationState: 'warn',
+      locationTip: '室内增强调用完成，请从候选地点中确认',
+      locationMeta: summary,
+      locationCandidates: commonLocations()
+    });
+  },
+
   selectMapMarker(event) {
     const markerId = Number(event.detail && event.detail.markerId);
     const marker = this.data.campusMapMarkers.find((entry) => entry.id === markerId);
@@ -403,6 +465,7 @@ Page({
       locationState: 'idle',
       locationMeta: '不调用位置接口，可搜索地点或从常用地点中选择',
       locationConfirm: null,
+      indoorMeta: '',
       showCampusMap: false,
       locationCandidates: commonLocations(),
       locations: searchLocations()
@@ -647,6 +710,7 @@ Page({
       aiProcessSteps: [],
       locationCandidates: commonLocations(),
       showCampusMap: false,
+      indoorMeta: '',
       locationTip: '请选择发现或丢失的大致校内地点',
       locationState: 'idle',
       locationMeta: '不调用位置接口，可搜索地点或从常用地点中选择',

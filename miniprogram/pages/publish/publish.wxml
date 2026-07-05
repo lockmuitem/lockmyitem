@@ -56,10 +56,12 @@
           <text wx:if="{{locationMeta}}" class="location-meta">{{locationMeta}}</text>
         </view>
         <view class="location-actions">
+          <button class="indoor-button" loading="{{indoorLocating}}" bindtap="tryIndoorEnhancedLocation" aria-label="使用室内增强定位">室内增强</button>
           <button class="map-picker-button" bindtap="openCampusMap" aria-label="打开校内地图选择地点">地图选择</button>
           <button class="locate-button" bindtap="showCommonLocations" aria-label="显示常用校内地点">常用地点</button>
         </view>
       </view>
+      <text wx:if="{{indoorMeta}}" class="indoor-meta">{{indoorMeta}}</text>
       <view wx:if="{{showCampusMap}}" class="campus-map-shell">
         <map
           class="campus-map"

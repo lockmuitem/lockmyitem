@@ -232,10 +232,11 @@
   flex: 0 0 auto;
   display: grid;
   gap: 10rpx;
-  width: 156rpx;
+  width: 168rpx;
 }
 
-.locate-button {
+.locate-button,
+.indoor-button {
   width: 100%;
   height: 62rpx;
   margin: 0;
@@ -245,6 +246,10 @@
   border-radius: 8rpx;
   font-size: 26rpx;
   line-height: 62rpx;
+}
+
+.indoor-button {
+  background: #1f9d6a;
 }
 
 .map-picker-button {
@@ -258,6 +263,17 @@
   border-radius: 8rpx;
   font-size: 26rpx;
   line-height: 62rpx;
+}
+
+.indoor-meta {
+  display: block;
+  margin-top: 14rpx;
+  padding: 12rpx 14rpx;
+  color: #245B6B;
+  background: rgba(36, 91, 107, 0.08);
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.4;
 }
 
 .campus-map-shell {
@@ -323,6 +339,7 @@
 }
 
 .locate-button::after,
+.indoor-button::after,
 .map-picker-button::after,
 .candidate::after,
 .image-picker::after,
