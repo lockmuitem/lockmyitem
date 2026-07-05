@@ -269,7 +269,8 @@
 
 .campus-map {
   width: 100%;
-  height: 420rpx;
+  height: 520rpx;
+  background: #E8F0F3;
 }
 
 .campus-map-note {

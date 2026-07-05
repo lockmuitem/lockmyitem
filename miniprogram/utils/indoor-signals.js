@@ -140,7 +140,7 @@ function signalSummary(wifi = {}, ble = {}) {
 function resolveIndoorSignals(wifi, ble) {
   const app = getApp();
   if (!app.globalData.cloudReady || !wx.cloud) {
-    return Promise.resolve({ ok: false, reason: '云开发未启用，跳过云端室内增强定位' });
+    return Promise.resolve({ ok: false, reason: '云开发未启用，跳过云端位置解析' });
   }
   return new Promise((resolve) => {
     wx.cloud.callFunction({
@@ -152,9 +152,9 @@ function resolveIndoorSignals(wifi, ble) {
       },
       success: (res) => {
         const result = res.result || {};
-        resolve(result.ok ? { ok: true, data: result.data || {} } : { ok: false, reason: result.message || '室内增强定位未返回结果' });
+        resolve(result.ok ? { ok: true, data: result.data || {} } : { ok: false, reason: result.message || '云端位置解析未返回结果' });
       },
-      fail: () => resolve({ ok: false, reason: '室内增强定位云函数调用失败' })
+      fail: () => resolve({ ok: false, reason: '获取位置云函数调用失败' })
     });
   });
 }
@@ -171,8 +171,8 @@ function collectIndoorSignals() {
     .catch(() => ({
       wifi: { ok: false, connected: null, list: [] },
       ble: { ok: false, devices: [] },
-      network: { ok: false, reason: '室内增强定位不可用' },
-      summary: '室内增强定位不可用'
+      network: { ok: false, reason: '获取位置不可用' },
+      summary: '获取位置不可用'
     }));
 }
 

@@ -5,6 +5,9 @@ const { collectIndoorSignals } = require('../../utils/indoor-signals');
 
 const COMMON_LOCATION_LIMIT = 10;
 const INDOOR_MATCH_DISTANCE = 1600;
+const CUSTOM_LOCATION_AREA = '地图标点';
+const LOCATION_MARKER_BASE_ID = 100;
+const CUSTOM_MAP_MARKER_ID = 9999;
 
 function initialForm() {
   return {
@@ -15,7 +18,13 @@ function initialForm() {
     aiTags: [],
     imageUrls: [],
     locationId: '',
-    locationDetail: ''
+    locationName: '',
+    locationArea: '',
+    locationDetail: '',
+    latitude: null,
+    longitude: null,
+    mapX: null,
+    mapY: null
   };
 }
 
@@ -204,27 +213,124 @@ function commonLocations() {
   }));
 }
 
-function campusMapMarkers() {
-  return LOCATIONS
-    .filter((location) => location.enabled)
-    .map((location, index) => ({
-      id: index + 1,
-      locationId: location._id,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      title: location.name,
-      width: 28,
-      height: 28,
+function mapLocations() {
+  return LOCATIONS.filter((location) => location.enabled && location.latitude && location.longitude);
+}
+
+function campusLocationBounds() {
+  const locations = mapLocations();
+  const latitudes = locations.map((location) => location.latitude);
+  const longitudes = locations.map((location) => location.longitude);
+  return {
+    north: Math.max(...latitudes) + 0.0004,
+    south: Math.min(...latitudes) - 0.0004,
+    west: Math.min(...longitudes) - 0.0004,
+    east: Math.max(...longitudes) + 0.0004
+  };
+}
+
+const CAMPUS_LOCATION_BOUNDS = campusLocationBounds();
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Math.round(value * 10) / 10));
+}
+
+function mapPercentFromCoords(coords) {
+  return {
+    x: clampPercent(((coords.longitude - CAMPUS_LOCATION_BOUNDS.west) / (CAMPUS_LOCATION_BOUNDS.east - CAMPUS_LOCATION_BOUNDS.west)) * 100),
+    y: clampPercent(((CAMPUS_LOCATION_BOUNDS.north - coords.latitude) / (CAMPUS_LOCATION_BOUNDS.north - CAMPUS_LOCATION_BOUNDS.south)) * 100)
+  };
+}
+
+function distanceMeters(a, b) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+}
+
+function directionSuffixFromCoords(point, anchor) {
+  const avgLat = ((point.latitude + anchor.latitude) / 2) * Math.PI / 180;
+  const dx = (point.longitude - anchor.longitude) * 111000 * Math.cos(avgLat);
+  const dy = (point.latitude - anchor.latitude) * 111000;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+  if (Math.sqrt((absX * absX) + (absY * absY)) < 35) return '附近';
+  const vertical = absY > 24 ? (dy > 0 ? '北' : '南') : '';
+  const horizontal = absX > 24 ? (dx > 0 ? '东' : '西') : '';
+  if (vertical && horizontal && absX > absY * 1.8) return `${horizontal}侧`;
+  if (vertical && horizontal && absY > absX * 1.8) return `${vertical}侧`;
+  if (vertical || horizontal) return `${vertical}${horizontal}侧`;
+  return '附近';
+}
+
+function describeMapPoint(point) {
+  const anchor = nearestCampusLocations(point, 1)[0];
+  if (!anchor) {
+    return {
+      name: '校内自定义标点',
+      area: CUSTOM_LOCATION_AREA,
+      anchor: null
+    };
+  }
+  const suffix = directionSuffixFromCoords(point, anchor);
+  return {
+    name: suffix === '附近' ? `${anchor.name}附近` : `${anchor.name}${suffix}`,
+    area: anchor.area || CUSTOM_LOCATION_AREA,
+    anchor,
+    distance: Math.round(distanceMeters(point, anchor))
+  };
+}
+
+function buildCampusMapMarkers(selectedPoint) {
+  const markers = mapLocations().map((location, index) => ({
+    id: LOCATION_MARKER_BASE_ID + index,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    title: location.name,
+    width: 18,
+    height: 18,
+    callout: {
+      content: location.name,
+      color: '#245B6B',
+      fontSize: 12,
+      borderRadius: 6,
+      bgColor: '#ffffff',
+      padding: 6,
+      display: 'BYCLICK'
+    }
+  }));
+  if (selectedPoint && selectedPoint.latitude && selectedPoint.longitude) {
+    markers.push({
+      id: CUSTOM_MAP_MARKER_ID,
+      latitude: selectedPoint.latitude,
+      longitude: selectedPoint.longitude,
+      title: selectedPoint.name || '已标记地点',
+      width: 30,
+      height: 30,
       callout: {
-        content: location.name,
-        display: 'BYCLICK',
-        padding: 7,
-        borderRadius: 4,
+        content: selectedPoint.name || '已标记地点',
+        color: '#172A33',
+        fontSize: 13,
+        borderRadius: 6,
         bgColor: '#ffffff',
-        color: '#245B6B',
-        fontSize: 12
+        padding: 8,
+        display: 'ALWAYS'
       }
-    }));
+    });
+  }
+  return markers;
+}
+
+function locationFromMarkerId(markerId) {
+  const index = Number(markerId) - LOCATION_MARKER_BASE_ID;
+  if (!Number.isInteger(index) || index < 0) return null;
+  return mapLocations()[index] || null;
 }
 
 function buildManualLocationConfirm(location) {
@@ -251,10 +357,11 @@ Page({
     locationMeta: '',
     locationConfirm: null,
     showCampusMap: false,
-    campusMapMarkers: campusMapMarkers(),
+    customMapPoint: null,
+    campusMapMarkers: buildCampusMapMarkers(),
     mapLatitude: CAMPUS_CENTER.latitude,
     mapLongitude: CAMPUS_CENTER.longitude,
-    mapScale: 16,
+    mapScale: 17,
     aiProcessStage: 'idle',
     aiExtractedText: '',
     aiProcessSteps: [],
@@ -324,10 +431,14 @@ Page({
     this.setData({
       showCampusMap: true,
       locationState: 'idle',
-      locationTip: '在地图上点击校内地点标记',
-      locationMeta: '地图仅展示上科大校内地点，不获取你的实时位置',
+      locationTip: '在地图上点击任意位置',
+      locationMeta: '系统会参照上科大校园地图地点自动生成位置描述',
       locationCandidates: [],
-      locations: searchLocations()
+      locations: searchLocations(),
+      campusMapMarkers: buildCampusMapMarkers(this.data.customMapPoint),
+      mapLatitude: this.data.form.latitude || CAMPUS_CENTER.latitude,
+      mapLongitude: this.data.form.longitude || CAMPUS_CENTER.longitude,
+      mapScale: 17
     });
   },
 
@@ -339,6 +450,8 @@ Page({
       locationMeta: '仅采集 Wi-Fi/BLE 信号，不调用普通定位',
       indoorMeta: '正在获取位置...',
       showCampusMap: false,
+      customMapPoint: null,
+      campusMapMarkers: buildCampusMapMarkers(),
       locationCandidates: []
     });
     collectIndoorSignals().then((signals) => this.applyIndoorSignals(signals));
@@ -381,7 +494,7 @@ Page({
     }
     this.setData({
       indoorLocating: false,
-      indoorMeta: `${summary} · ${network.reason || '云端未返回坐标'}`,
+      indoorMeta: `${summary} · ${network.reason || '云端未返回可用位置'}`,
       locationState: 'warn',
       locationTip: '获取位置完成，请从候选地点中确认',
       locationMeta: summary,
@@ -389,31 +502,85 @@ Page({
     });
   },
 
+  selectMapPoint(event) {
+    const detail = event.detail || {};
+    const latitude = Number(detail.latitude);
+    const longitude = Number(detail.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    const point = {
+      latitude: Number(latitude.toFixed(7)),
+      longitude: Number(longitude.toFixed(7))
+    };
+    const percent = mapPercentFromCoords(point);
+    const description = describeMapPoint(point);
+    const selectedPoint = {
+      ...point,
+      name: description.name
+    };
+    this.setData({
+      'form.locationId': '',
+      'form.locationName': description.name,
+      'form.locationArea': description.area,
+      'form.locationDetail': description.name,
+      'form.latitude': point.latitude,
+      'form.longitude': point.longitude,
+      'form.mapX': percent.x,
+      'form.mapY': percent.y,
+      customMapPoint: selectedPoint,
+      campusMapMarkers: buildCampusMapMarkers(selectedPoint),
+      mapLatitude: point.latitude,
+      mapLongitude: point.longitude,
+      locationKeyword: description.name,
+      locations: [],
+      locationTip: `已标记：${description.name}`,
+      locationState: 'ok',
+      locationMeta: description.anchor ? `参照 ${description.anchor.name}，约 ${description.distance}m` : '已根据地图标点生成位置描述',
+      locationConfirm: {
+        label: '地图标点：',
+        name: description.name,
+        areaText: description.area,
+        confirmText: '已根据地图标点生成位置描述，请确认后发布'
+      }
+    }, () => this.refreshPotentialMatches());
+  },
+
   selectMapMarker(event) {
-    const markerId = Number(event.detail && event.detail.markerId);
-    const marker = this.data.campusMapMarkers.find((entry) => entry.id === markerId);
-    const location = marker && searchLocations().find((entry) => entry._id === marker.locationId);
+    const markerId = event.markerId || (event.detail && event.detail.markerId);
+    const location = locationFromMarkerId(markerId);
     if (!location) return;
-    this.setLocation(location, `已在地图上选择 ${location.name}`, {
-      meta: `地图选择：${location.name}`,
-      detail: location.name,
+    const selectedPoint = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      name: location.name
+    };
+    this.setLocation(location, `已选择 ${location.name}`, {
+      meta: '已从上科大校园地图地点中选择',
       confirm: {
         ...buildManualLocationConfirm(location),
-        label: '地图选择：',
-        confirmText: '已根据地图标记选择校内地点，请确认后发布'
-      }
-    });
-    this.setData({
-      showCampusMap: false,
-      mapLatitude: location.latitude,
-      mapLongitude: location.longitude
+        label: '地图地点：',
+        confirmText: '已选择地图地点，请确认后发布'
+      },
+      customMapPoint: selectedPoint
     });
   },
 
   setLocation(location, tip, options = {}) {
+    const selectedPoint = options.customMapPoint === undefined && location.latitude && location.longitude
+      ? { latitude: location.latitude, longitude: location.longitude, name: location.name }
+      : (options.customMapPoint || null);
     this.setData({
       'form.locationId': location._id,
+      'form.locationName': location.name,
+      'form.locationArea': location.area || '校内地点',
       'form.locationDetail': options.detail || '',
+      'form.latitude': location.latitude || null,
+      'form.longitude': location.longitude || null,
+      'form.mapX': location.mapX === undefined ? null : location.mapX,
+      'form.mapY': location.mapY === undefined ? null : location.mapY,
+      customMapPoint: selectedPoint,
+      campusMapMarkers: buildCampusMapMarkers(selectedPoint),
+      mapLatitude: location.latitude || CAMPUS_CENTER.latitude,
+      mapLongitude: location.longitude || CAMPUS_CENTER.longitude,
       locationKeyword: location.name,
       locations: searchLocations(location.name),
       locationTip: tip,
@@ -427,10 +594,23 @@ Page({
   searchLocation(event) {
     const keyword = event.detail.value;
     this.setData({
+      'form.locationId': '',
+      'form.locationName': '',
+      'form.locationArea': '',
+      'form.locationDetail': '',
+      'form.latitude': null,
+      'form.longitude': null,
+      'form.mapX': null,
+      'form.mapY': null,
       locationKeyword: keyword,
       locations: searchLocations(keyword),
       locationCandidates: [],
-      locationConfirm: null
+      locationConfirm: null,
+      locationTip: keyword ? '从搜索结果中选择校内地点' : '',
+      locationState: 'idle',
+      locationMeta: '',
+      customMapPoint: null,
+      campusMapMarkers: buildCampusMapMarkers()
     });
   },
 
@@ -445,7 +625,13 @@ Page({
   clearLocation() {
     this.setData({
       'form.locationId': '',
+      'form.locationName': '',
+      'form.locationArea': '',
       'form.locationDetail': '',
+      'form.latitude': null,
+      'form.longitude': null,
+      'form.mapX': null,
+      'form.mapY': null,
       locationKeyword: '',
       locationTip: '',
       locationState: 'idle',
@@ -453,6 +639,8 @@ Page({
       locationConfirm: null,
       indoorMeta: '',
       showCampusMap: false,
+      customMapPoint: null,
+      campusMapMarkers: buildCampusMapMarkers(),
       locationCandidates: [],
       locations: searchLocations()
     });
@@ -696,6 +884,10 @@ Page({
       aiProcessSteps: [],
       locationCandidates: [],
       showCampusMap: false,
+      customMapPoint: null,
+      campusMapMarkers: buildCampusMapMarkers(),
+      mapLatitude: CAMPUS_CENTER.latitude,
+      mapLongitude: CAMPUS_CENTER.longitude,
       indoorMeta: '',
       locationTip: '',
       locationState: 'idle',

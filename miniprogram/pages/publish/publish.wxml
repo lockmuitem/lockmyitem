@@ -64,12 +64,14 @@
           longitude="{{mapLongitude}}"
           scale="{{mapScale}}"
           markers="{{campusMapMarkers}}"
+          bindtap="selectMapPoint"
           bindmarkertap="selectMapMarker"
           enable-zoom="{{true}}"
           enable-scroll="{{true}}"
           enable-rotate="{{false}}"
+          show-location="{{false}}"
         />
-        <text class="campus-map-note">点击地图上的校内地点标记完成选择。</text>
+        <text class="campus-map-note">点击地图任意位置标点，系统会参照上科大校园地图地点自动填入“建筑 + 方位”的位置描述。</text>
       </view>
       <view wx:if="{{locationConfirm}}" class="location-confirm">
         <view class="location-confirm-row">
@@ -84,7 +86,7 @@
       </view>
     </view>
     <input class="field" placeholder="搜索上科大校内地点，如 图书馆、食堂、宿舍" value="{{locationKeyword}}" bindinput="searchLocation" />
-    <button wx:if="{{form.locationId}}" class="clear-location" bindtap="clearLocation">不选择地点</button>
+    <button wx:if="{{form.locationId || form.locationName}}" class="clear-location" bindtap="clearLocation">不选择地点</button>
     <view wx:if="{{locationCandidates.length > 1}}" class="candidate-list">
       <button
         wx:for="{{locationCandidates}}"

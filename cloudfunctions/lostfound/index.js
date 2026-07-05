@@ -51,6 +51,11 @@ function envValue(value = '') {
   return String(value || '').trim();
 }
 
+function optionalNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function normalizeTencentMapSk(value = '') {
   return envValue(value).replace(/^sk\s*[:：]\s*/i, '');
 }
@@ -59,6 +64,20 @@ const TENCENT_MAP_CONFIG = {
   key: envValue(process.env.TENCENT_MAP_KEY),
   sk: normalizeTencentMapSk(process.env.TENCENT_MAP_SK || process.env.TENCENT_MAP_SECRET_KEY),
   networkUrl: envValue(process.env.TENCENT_MAP_NETWORK_URL) || 'https://apis.map.qq.com/ws/location/v1/network'
+};
+
+const AMAP_CONFIG = {
+  key: envValue(process.env.AMAP_KEY || process.env.GAODE_MAP_KEY),
+  hardwareUrl: envValue(process.env.AMAP_HARDWARE_URL) || 'https://restapi.amap.com/v5/position/IoT',
+  deviceId: envValue(process.env.AMAP_DEVICE_ID) || 'shanghaitech-findloss-miniprogram'
+};
+
+const BAIDU_LOC_CONFIG = {
+  key: envValue(process.env.BAIDU_LOC_KEY || process.env.BAIDU_MAP_AK || process.env.BAIDU_AK),
+  hardwareUrl: envValue(process.env.BAIDU_LOC_URL) || 'https://api.map.baidu.com/locapi/v2',
+  src: envValue(process.env.BAIDU_LOC_SRC) || 'shanghaitech_findloss',
+  prod: envValue(process.env.BAIDU_LOC_PROD) || 'lockmyitem',
+  deviceId: envValue(process.env.BAIDU_LOC_DEVICE_ID) || 'shanghaitech-findloss-miniprogram'
 };
 
 function ok(data = {}) {
@@ -291,6 +310,26 @@ function normalizeMac(value) {
   return String(value || '').trim().replace(/[^a-fA-F0-9]/g, '').toLowerCase();
 }
 
+function formatMacWithColons(value) {
+  const mac = normalizeMac(value);
+  if (mac.length !== 12) return '';
+  return mac.match(/.{1,2}/g).join(':');
+}
+
+function wifiEntriesFromEvent(event = {}) {
+  const wifi = event.wifi || {};
+  const entries = []
+    .concat(wifi.connected ? [wifi.connected] : [])
+    .concat(wifi.list || []);
+  const seen = {};
+  return entries.filter((entry) => {
+    const mac = normalizeMac(entry.BSSID || entry.bssid || entry.mac);
+    if (!mac || seen[mac]) return false;
+    seen[mac] = true;
+    return true;
+  });
+}
+
 function tencentMapSignatureValue(value) {
   if (value && typeof value === 'object') return JSON.stringify(value);
   return String(value);
@@ -307,12 +346,8 @@ function buildTencentMapSig(pathname, payload, queryParams = {}) {
 }
 
 function buildIndoorNetworkPayload(event = {}) {
-  const wifi = event.wifi || {};
   const ble = event.ble || {};
-  const wifiEntries = []
-    .concat(wifi.connected ? [wifi.connected] : [])
-    .concat(wifi.list || []);
-  const wifiinfo = wifiEntries
+  const wifiinfo = wifiEntriesFromEvent(event)
     .map((entry) => ({
       mac: normalizeMac(entry.BSSID || entry.bssid || entry.mac),
       rssi: normalizeSignalRssi(entry.signalStrength || entry.RSSI || entry.rssi)
@@ -336,13 +371,226 @@ function buildIndoorNetworkPayload(event = {}) {
   return payload;
 }
 
-async function resolveIndoorSignals(event = {}) {
+function baiduWifiRssi(entry = {}) {
+  const rssi = Number(entry.RSSI || entry.rssi);
+  if (Number.isFinite(rssi) && rssi !== 0) return Math.round(rssi);
+  return normalizeSignalRssi(entry.signalStrength);
+}
+
+function buildBaiduHardwarePayload(event = {}) {
+  const entries = wifiEntriesFromEvent(event)
+    .map((entry) => ({
+      mac: formatMacWithColons(entry.BSSID || entry.bssid || entry.mac),
+      rssi: baiduWifiRssi(entry),
+      ssid: String(entry.SSID || entry.ssid || '').replace(/[|,;]/g, '').slice(0, 32)
+    }))
+    .filter((entry) => entry.mac)
+    .slice(0, 30);
+  if (entries.length < 2) return null;
+  const traceId = event.traceId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const body = {
+    imei: event.deviceId || BAIDU_LOC_CONFIG.deviceId,
+    accesstype: '1',
+    macs: entries.map((entry) => `${entry.mac},${entry.rssi},${entry.ssid}`).join('|'),
+    mmac: `${entries[0].mac},${entries[0].rssi},${entries[0].ssid}`,
+    ctime: String(Math.floor(Date.now() / 1000)),
+    need_rgc: 'Y',
+    coor: 'GCJ02'
+  };
+  return {
+    key: BAIDU_LOC_CONFIG.key,
+    src: BAIDU_LOC_CONFIG.src,
+    prod: BAIDU_LOC_CONFIG.prod,
+    ver: '1.0',
+    trace: traceId,
+    body
+  };
+}
+
+function baiduResultCandidates(data = {}) {
+  const buckets = [
+    data.result,
+    data.results,
+    data.body,
+    data.content,
+    data.data,
+    data
+  ];
+  return buckets.reduce((list, entry) => {
+    if (!entry) return list;
+    if (Array.isArray(entry)) return list.concat(entry);
+    return list.concat([entry]);
+  }, []);
+}
+
+function parseBaiduLocation(data = {}) {
+  const candidate = baiduResultCandidates(data).find((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    if (entry.error !== undefined && Number(entry.error) !== 0) return false;
+    return entry.location || entry.loc || entry.lng || entry.longitude;
+  });
+  if (!candidate) return null;
+  const locationText = candidate.location || candidate.loc || '';
+  const parts = String(locationText).split(',');
+  const longitude = Number(candidate.longitude || candidate.lng || parts[0]);
+  const latitude = Number(candidate.latitude || candidate.lat || parts[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return {
+    latitude,
+    longitude,
+    accuracy: Number(candidate.radius || candidate.accuracy || candidate.precision) || 0,
+    confidence: candidate.radius ? Math.max(0, Math.min(1, 1 - Number(candidate.radius) / 300)) : 0,
+    address: candidate.addr || candidate.address || candidate.formatted_address || '',
+    adInfo: {
+      city: candidate.city || '',
+      adcode: candidate.adcode || ''
+    },
+    requestId: data.trace || data.request_id || '',
+    rawInfo: data.message || data.msg || ''
+  };
+}
+
+async function callBaiduHardwareLocation(event = {}) {
+  if (!BAIDU_LOC_CONFIG.key) {
+    return fail('百度智能硬件定位未配置 BAIDU_LOC_KEY', 'BAIDU_NOT_CONFIGURED');
+  }
+  const payload = buildBaiduHardwarePayload(event);
+  if (!payload) {
+    return fail('未采集到百度定位所需的 2 个以上 Wi-Fi 信号', 'BAIDU_SIGNAL_EMPTY');
+  }
+  const response = await fetch(BAIDU_LOC_CONFIG.hardwareUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    timeout: 8000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || Number(data.status) !== 0) {
+    const message = data.message || data.msg || data.info || `百度智能硬件定位失败 HTTP ${response.status}`;
+    return fail(message, 'BAIDU_NETWORK_FAILED');
+  }
+  const location = parseBaiduLocation(data);
+  if (!location) {
+    return fail(data.message || data.msg || '百度未返回可用坐标', 'BAIDU_LOCATION_EMPTY');
+  }
+  return ok({
+    provider: 'baidu-hardware-locapi',
+    ...location,
+    signalCount: {
+      wifi: payload.body.macs.split('|').length,
+      ble: 0
+    }
+  });
+}
+
+function amapMainSignalStrength(entry = {}, fallback = -65) {
+  const signalStrength = Number(entry.signalStrength);
+  if (Number.isFinite(signalStrength) && signalStrength > 0) {
+    return Math.round(Math.min(100, signalStrength));
+  }
+  const rssi = Number(entry.RSSI || entry.rssi);
+  if (Number.isFinite(rssi) && rssi !== 0) return Math.round(rssi);
+  return fallback;
+}
+
+function amapNearbySignalStrength(entry = {}) {
+  const rssi = Number(entry.RSSI || entry.rssi);
+  if (Number.isFinite(rssi) && rssi !== 0) return Math.round(rssi);
+  return normalizeSignalRssi(entry.signalStrength);
+}
+
+function buildAmapHardwarePayload(event = {}) {
+  const entries = wifiEntriesFromEvent(event)
+    .map((entry, index) => ({
+      mac: formatMacWithColons(entry.BSSID || entry.bssid || entry.mac),
+      rssi: index === 0 ? amapMainSignalStrength(entry) : amapNearbySignalStrength(entry),
+      ssid: String(entry.SSID || entry.ssid || '').replace(/[|,]/g, '').slice(0, 32)
+    }))
+    .filter((entry) => entry.mac)
+    .slice(0, 20);
+  if (!entries.length) return null;
+  const main = entries[0];
+  const payload = {
+    key: AMAP_CONFIG.key,
+    accesstype: '2',
+    output: 'json',
+    cdma: '0',
+    network: 'GSM',
+    platform: 'rest',
+    diu: event.deviceId || AMAP_CONFIG.deviceId,
+    mmac: `${main.mac},${main.rssi},${main.ssid},0`
+  };
+  if (entries.length > 1) {
+    payload.macs = entries
+      .slice(1)
+      .map((entry) => `${entry.mac},${entry.rssi},${entry.ssid},0`)
+      .join('|');
+  }
+  return payload;
+}
+
+function parseAmapLocation(data = {}) {
+  const result = data.result || data.position || data.data || {};
+  const locationText = result.location || result.loc || data.location || '';
+  const parts = String(locationText).split(',');
+  const longitude = Number(result.longitude || result.lng || parts[0]);
+  const latitude = Number(result.latitude || result.lat || parts[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return {
+    latitude,
+    longitude,
+    accuracy: Number(result.radius || result.accuracy || result.precision) || 0,
+    confidence: result.radius ? Math.max(0, Math.min(1, 1 - Number(result.radius) / 300)) : 0,
+    address: result.desc || result.address || result.formatted_address || '',
+    adInfo: {
+      city: result.city || '',
+      adcode: result.adcode || ''
+    },
+    requestId: data.traceid || data.trace_id || data.request_id || '',
+    rawInfo: data.info || ''
+  };
+}
+
+async function callAmapHardwareLocation(event = {}) {
+  if (!AMAP_CONFIG.key) {
+    return fail('高德智能硬件定位未配置 AMAP_KEY', 'AMAP_NOT_CONFIGURED');
+  }
+  const payload = buildAmapHardwarePayload(event);
+  if (!payload) {
+    return fail('未采集到可用于高德定位的 Wi-Fi 信号', 'AMAP_SIGNAL_EMPTY');
+  }
+  const endpoint = new URL(AMAP_CONFIG.hardwareUrl);
+  Object.keys(payload).forEach((key) => endpoint.searchParams.set(key, payload[key]));
+  const response = await fetch(endpoint.toString(), {
+    method: 'POST',
+    timeout: 8000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || String(data.status) !== '1') {
+    const message = data.info || data.message || `高德智能硬件定位失败 HTTP ${response.status}`;
+    return fail(message, 'AMAP_NETWORK_FAILED');
+  }
+  const location = parseAmapLocation(data);
+  if (!location) {
+    return fail(data.info || '高德未返回可用坐标', 'AMAP_LOCATION_EMPTY');
+  }
+  return ok({
+    provider: 'amap-hardware-iot',
+    ...location,
+    signalCount: {
+      wifi: (payload.macs ? payload.macs.split('|').length : 0) + 1,
+      ble: 0
+    }
+  });
+}
+
+async function callTencentIndoorNetwork(event = {}) {
   if (!TENCENT_MAP_CONFIG.key) {
-    return fail('室内增强定位未配置 TENCENT_MAP_KEY', 'INDOOR_NOT_CONFIGURED');
+    return fail('腾讯地图网络定位未配置 TENCENT_MAP_KEY', 'INDOOR_NOT_CONFIGURED');
   }
   const payload = buildIndoorNetworkPayload(event);
   if (!payload.wifiinfo && !payload.beaconinfo) {
-    return fail('未采集到可用于室内增强定位的 Wi-Fi/BLE 信号', 'INDOOR_SIGNAL_EMPTY');
+    return fail('未采集到可用于腾讯地图网络定位的 Wi-Fi/BLE 信号', 'INDOOR_SIGNAL_EMPTY');
   }
   const endpoint = new URL(TENCENT_MAP_CONFIG.networkUrl);
   if (TENCENT_MAP_CONFIG.sk) {
@@ -360,7 +608,7 @@ async function resolveIndoorSignals(event = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.status !== 0) {
-    const message = data.message || `室内增强定位失败 HTTP ${response.status}`;
+    const message = data.message || `腾讯地图网络定位失败 HTTP ${response.status}`;
     const hint = /签名|sig|sn/i.test(message)
       ? '。请确认 TENCENT_MAP_SK 填的是纯 SK 值，不要带 sk: 前缀，并确认它属于当前 TENCENT_MAP_KEY'
       : '';
@@ -382,6 +630,29 @@ async function resolveIndoorSignals(event = {}) {
       ble: (payload.beaconinfo || []).length
     }
   });
+}
+
+async function resolveIndoorSignals(event = {}) {
+  const errors = [];
+  if (BAIDU_LOC_CONFIG.key) {
+    const baiduResult = await callBaiduHardwareLocation(event);
+    if (baiduResult.ok) return baiduResult;
+    errors.push(`百度：${baiduResult.message}`);
+  }
+  if (AMAP_CONFIG.key) {
+    const amapResult = await callAmapHardwareLocation(event);
+    if (amapResult.ok) return amapResult;
+    errors.push(`高德：${amapResult.message}`);
+  }
+  if (TENCENT_MAP_CONFIG.key) {
+    const tencentResult = await callTencentIndoorNetwork(event);
+    if (tencentResult.ok) return tencentResult;
+    errors.push(`腾讯：${tencentResult.message}`);
+  }
+  if (!BAIDU_LOC_CONFIG.key && !AMAP_CONFIG.key && !TENCENT_MAP_CONFIG.key) {
+    return fail('请先配置 BAIDU_LOC_KEY、AMAP_KEY 或 TENCENT_MAP_KEY', 'INDOOR_NOT_CONFIGURED');
+  }
+  return fail(errors.join('；') || '未能解析当前位置', 'INDOOR_NETWORK_FAILED');
 }
 
 async function ensureUser(openid, profile = {}) {
@@ -487,6 +758,9 @@ async function createItem(event, context) {
     const locationResult = await db.collection(COLLECTIONS.locations).doc(payload.locationId).get();
     location = locationResult.data;
   }
+  const customLatitude = optionalNumber(payload.latitude);
+  const customLongitude = optionalNumber(payload.longitude);
+  const hasCustomLocation = !location && (payload.locationName || (customLatitude && customLongitude));
   const classification = payload.category
     ? { category: payload.category, aiTags: payload.aiTags || [] }
     : classifyByText(`${payload.title} ${payload.description || ''}`);
@@ -505,10 +779,15 @@ async function createItem(event, context) {
     imageEmbedding: payload.imageEmbedding || [],
     semanticEmbedding: payload.semanticEmbedding || [],
     locationId: location ? location._id : '',
-    locationName: location ? location.name : '',
-    locationDetail: '',
-    mapX: location ? location.mapX : null,
-    mapY: location ? location.mapY : null,
+    locationName: location ? location.name : (payload.locationName || ''),
+    locationArea: location ? location.area : (payload.locationArea || (hasCustomLocation ? '自定义位置' : '')),
+    locationNearby: location ? location.nearby || [] : [],
+    locationGuide: location ? location.detail || '' : '',
+    locationDetail: payload.locationDetail || '',
+    mapX: location ? location.mapX : optionalNumber(payload.mapX),
+    mapY: location ? location.mapY : optionalNumber(payload.mapY),
+    latitude: location ? location.latitude : customLatitude,
+    longitude: location ? location.longitude : customLongitude,
     status: 'active',
     ownerOpenid: context.OPENID,
     ownerName: payload.ownerName || '微信用户',

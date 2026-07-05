@@ -52,6 +52,22 @@ function point(latitude, longitude) {
   };
 }
 
+const CAMPUS_GCJ_BOUNDS = {
+  north: wgs84ToGcj02(CAMPUS_BOUNDS.north, CAMPUS_BOUNDS.east).latitude,
+  south: wgs84ToGcj02(CAMPUS_BOUNDS.south, CAMPUS_BOUNDS.west).latitude,
+  west: wgs84ToGcj02(CAMPUS_BOUNDS.south, CAMPUS_BOUNDS.west).longitude,
+  east: wgs84ToGcj02(CAMPUS_BOUNDS.north, CAMPUS_BOUNDS.east).longitude
+};
+
+function gcjPoint(latitude, longitude) {
+  return {
+    latitude: Number(latitude.toFixed(7)),
+    longitude: Number(longitude.toFixed(7)),
+    mapX: Math.round(((longitude - CAMPUS_GCJ_BOUNDS.west) / (CAMPUS_GCJ_BOUNDS.east - CAMPUS_GCJ_BOUNDS.west)) * 100),
+    mapY: Math.round(((CAMPUS_GCJ_BOUNDS.north - latitude) / (CAMPUS_GCJ_BOUNDS.north - CAMPUS_GCJ_BOUNDS.south)) * 100)
+  };
+}
+
 const LOCATIONS = [
   {
     _id: 'library',
@@ -95,6 +111,17 @@ const LOCATIONS = [
     nearby: ['生命科学与技术学院', '免疫化学研究所'],
     ...point(31.1795879, 121.5891026),
     sortOrder: 4,
+    enabled: true
+  },
+  {
+    _id: 'sbme',
+    name: '生物医学工程学院',
+    aliases: ['BME', '生医工', '生物医学工程', '生物医学工程学院'],
+    area: '学院楼',
+    detail: '生物医学工程学院楼',
+    nearby: ['信息科学与技术学院', '创业与管理学院', '物质科学与技术学院'],
+    ...point(31.1798000, 121.5903500),
+    sortOrder: 4.5,
     enabled: true
   },
   {
@@ -379,6 +406,132 @@ const LOCATIONS = [
     area: '出入口',
     ...point(31.1784008, 121.5853787),
     sortOrder: 34,
+    enabled: true
+  },
+  {
+    _id: 'family-mart',
+    name: '全家便利店',
+    aliases: ['全家', '便利店', 'FamilyMart'],
+    area: '生活服务',
+    ...gcjPoint(31.1771665, 121.5973837),
+    sortOrder: 35,
+    enabled: true
+  },
+  {
+    _id: 'coffee-shop',
+    name: '咖啡厅',
+    aliases: ['咖啡', 'Cafe'],
+    area: '餐饮',
+    ...gcjPoint(31.1785931, 121.5974827),
+    sortOrder: 36,
+    enabled: true
+  },
+  {
+    _id: 'medical-room',
+    name: '医务室',
+    aliases: ['医疗', '医务', '医生'],
+    area: '生活服务',
+    ...gcjPoint(31.1785384, 121.5968287),
+    sortOrder: 37,
+    enabled: true
+  },
+  {
+    _id: 'printing-room',
+    name: '文印室',
+    aliases: ['文印', '打印'],
+    area: '生活服务',
+    ...gcjPoint(31.1753914, 121.5964267),
+    sortOrder: 38,
+    enabled: true
+  },
+  {
+    _id: 'self-print',
+    name: '自助打印',
+    aliases: ['打印', '自助打印'],
+    area: '生活服务',
+    ...gcjPoint(31.1757441, 121.5952073),
+    sortOrder: 39,
+    enabled: true
+  },
+  {
+    _id: 'hair-salon',
+    name: '校园理发中心',
+    aliases: ['理发', '理发店'],
+    area: '生活服务',
+    ...gcjPoint(31.1777562, 121.5965344),
+    sortOrder: 40,
+    enabled: true
+  },
+  {
+    _id: 'cainiao',
+    name: '菜鸟驿站',
+    aliases: ['快递', '驿站', '菜鸟'],
+    area: '生活服务',
+    ...gcjPoint(31.1773421, 121.5970801),
+    sortOrder: 41,
+    enabled: true
+  },
+  {
+    _id: 'bank',
+    name: '上海银行',
+    aliases: ['银行', 'ATM'],
+    area: '生活服务',
+    ...gcjPoint(31.1784765, 121.5987650),
+    sortOrder: 42,
+    enabled: true
+  },
+  {
+    _id: 'bank-atm',
+    name: '上海银行ATM',
+    aliases: ['ATM', '银行'],
+    area: '生活服务',
+    ...gcjPoint(31.1753914, 121.5964267),
+    sortOrder: 43,
+    enabled: true
+  },
+  {
+    _id: 'basketball-court',
+    name: '篮球场',
+    aliases: ['篮球', '球场'],
+    area: '运动区',
+    ...gcjPoint(31.1776480, 121.5993140),
+    sortOrder: 44,
+    enabled: true
+  },
+  {
+    _id: 'volleyball-court',
+    name: '排球场',
+    aliases: ['排球', '球场'],
+    area: '运动区',
+    ...gcjPoint(31.1781696, 121.5991783),
+    sortOrder: 45,
+    enabled: true
+  },
+  {
+    _id: 'tennis-court',
+    name: '网球场',
+    aliases: ['网球', '球场'],
+    area: '运动区',
+    ...gcjPoint(31.1794116, 121.5961256),
+    sortOrder: 46,
+    enabled: true
+  },
+  {
+    _id: 'fitness-ground',
+    name: '健身场',
+    aliases: ['健身', '运动'],
+    area: '运动区',
+    ...gcjPoint(31.1773651, 121.5996765),
+    sortOrder: 47,
+    enabled: true
+  },
+  {
+    _id: 'school-bus',
+    name: '学校班车',
+    aliases: ['班车', '校车'],
+    area: '交通',
+    ...gcjPoint(31.1760447, 121.5988197),
+    sortOrder: 48,
     enabled: true
   }
 ];

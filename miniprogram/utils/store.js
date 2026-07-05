@@ -321,6 +321,23 @@ function findLocation(locationId) {
   return LOCATIONS.find((entry) => entry._id === nextId);
 }
 
+function optionalNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function distanceMeters(a, b) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+}
+
 function setState(nextState) {
   wx.setStorageSync(KEY, nextState);
   return nextState;
@@ -425,6 +442,9 @@ function createItem(payload) {
   const state = getState();
   const user = login();
   const location = findLocation(payload.locationId);
+  const customLatitude = optionalNumber(payload.latitude);
+  const customLongitude = optionalNumber(payload.longitude);
+  const hasCustomLocation = !location && (payload.locationName || (customLatitude && customLongitude));
   const classification = payload.category
     ? { category: payload.category, aiTags: payload.aiTags || [] }
     : classifyByText(`${payload.title} ${payload.description || ''}`);
@@ -444,15 +464,15 @@ function createItem(payload) {
     imageEmbedding: payload.imageEmbedding || [],
     semanticEmbedding: payload.semanticEmbedding || [],
     locationId: location ? location._id : '',
-    locationName: location ? location.name : '',
-    locationArea: location ? location.area : '',
+    locationName: location ? location.name : (payload.locationName || ''),
+    locationArea: location ? location.area : (payload.locationArea || (hasCustomLocation ? '自定义位置' : '')),
     locationNearby: location ? location.nearby || [] : [],
     locationGuide: location ? location.detail || '' : '',
     locationDetail: payload.locationDetail || '',
-    mapX: location ? location.mapX : null,
-    mapY: location ? location.mapY : null,
-    latitude: location ? location.latitude : null,
-    longitude: location ? location.longitude : null,
+    mapX: location ? location.mapX : optionalNumber(payload.mapX),
+    mapY: location ? location.mapY : optionalNumber(payload.mapY),
+    latitude: location ? location.latitude : customLatitude,
+    longitude: location ? location.longitude : customLongitude,
     status: 'active',
     ownerOpenid: user.openid,
     ownerName: user.nickName,
@@ -468,22 +488,33 @@ function createItem(payload) {
 function scoreItemMatch(lostPayload, foundItem) {
   const featureScore = scoreFeatureMatch(lostPayload, foundItem);
   let score = featureScore.similarity;
+  const reasons = (featureScore.reasons || []).slice();
 
   if (lostPayload.locationId && foundItem.locationId === (LOCATION_ID_ALIASES[lostPayload.locationId] || lostPayload.locationId)) {
     score += 6;
+    reasons.push('地点一致');
   } else if (lostPayload.locationId && foundItem.locationId) {
     const lostLocation = findLocation(lostPayload.locationId);
     const foundLocation = findLocation(foundItem.locationId);
     if (lostLocation && foundLocation) {
       const dLat = lostLocation.latitude - foundLocation.latitude;
       const dLng = lostLocation.longitude - foundLocation.longitude;
-      if (Math.sqrt(dLat * dLat + dLng * dLng) < 0.0012) score += 5;
+      if (Math.sqrt(dLat * dLat + dLng * dLng) < 0.0012) {
+        score += 5;
+        reasons.push('地点接近');
+      }
+    }
+  } else if (lostPayload.latitude && lostPayload.longitude && foundItem.latitude && foundItem.longitude) {
+    const distance = distanceMeters(lostPayload, foundItem);
+    if (distance <= 180) {
+      score += 5;
+      reasons.push('地图标点接近');
     }
   }
 
   return {
     similarity: Math.min(score, 98),
-    reasons: featureScore.reasons
+    reasons
   };
 }
 
