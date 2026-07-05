@@ -23,25 +23,6 @@ HUNYUAN_MODEL=hunyuan-vision
 TENCENT_HUNYUAN_ENDPOINT=https://hunyuan.tencentcloudapi.com
 ```
 
-Optional indoor-enhanced positioning test:
-
-```env
-BAIDU_LOC_KEY=your-baidu-locapi-key
-BAIDU_LOC_SRC=shanghaitech_findloss
-BAIDU_LOC_PROD=lockmyitem
-AMAP_KEY=your-amap-web-service-key
-TENCENT_MAP_KEY=your-tencent-location-service-key
-TENCENT_MAP_NETWORK_URL=https://apis.map.qq.com/ws/location/v1/network
-```
-
-When `BAIDU_LOC_KEY` exists, `lostfound.resolveIndoorSignals` tries Baidu intelligent hardware location first. If it fails or is not configured, the function falls back to AMap hardware positioning and then Tencent Map Network Location.
-
-`BAIDU_LOC_KEY` should be a Baidu intelligent hardware location key for `https://api.map.baidu.com/locapi/v2`. Baidu documents this service as available to deep cooperation users; if Baidu returns a permission or quota error, check the service permission with Baidu LBS support.
-
-`AMAP_KEY` should be an AMap Web Service key with hardware positioning access. If AMap returns `INVALID_USER_KEY`, `INSUFFICIENT_PRIVILEGES`, or `OVER_QUOTA`, check the key type, service permission, and quota in the AMap console.
-
-`TENCENT_MAP_SK` is optional. Configure it only when your Tencent Location Service key requires request signing. Use the raw SK value only; do not include the `sk:` prefix.
-
 Optional OpenAI-compatible Hunyuan mode:
 
 ```env

@@ -221,19 +221,6 @@
   width: 100%;
 }
 
-.indoor-button {
-  flex: 0 0 176rpx;
-  height: 62rpx;
-  margin: 0;
-  padding: 0;
-  color: #ffffff;
-  background: #1f9d6a;
-  border-radius: 8rpx;
-  font-size: 26rpx;
-  font-weight: 800;
-  line-height: 62rpx;
-}
-
 .map-picker-button {
   flex: 0 0 176rpx;
   height: 62rpx;
@@ -246,17 +233,6 @@
   font-size: 26rpx;
   font-weight: 800;
   line-height: 62rpx;
-}
-
-.indoor-meta {
-  display: block;
-  margin-top: 14rpx;
-  padding: 12rpx 14rpx;
-  color: #245B6B;
-  background: rgba(36, 91, 107, 0.08);
-  border-radius: 8rpx;
-  font-size: 24rpx;
-  line-height: 1.4;
 }
 
 .campus-map-shell {
@@ -322,7 +298,6 @@
   line-height: 1.4;
 }
 
-.indoor-button::after,
 .map-picker-button::after,
 .candidate::after,
 .image-picker::after,

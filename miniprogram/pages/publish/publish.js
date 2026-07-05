@@ -1,10 +1,8 @@
 const { CATEGORIES } = require('../../utils/constants');
 const { createItem, searchLocations, classifyByText, findPotentialMatches } = require('../../utils/store');
 const { CAMPUS_CENTER, LOCATIONS, nearestCampusLocations } = require('../../utils/locations');
-const { collectIndoorSignals } = require('../../utils/indoor-signals');
 
 const COMMON_LOCATION_LIMIT = 10;
-const INDOOR_MATCH_DISTANCE = 1600;
 const CUSTOM_LOCATION_AREA = '地图标点';
 const LOCATION_MARKER_BASE_ID = 100;
 const CUSTOM_MAP_MARKER_ID = 9999;
@@ -350,8 +348,6 @@ Page({
     locationCandidates: [],
     locating: false,
     classifying: false,
-    indoorLocating: false,
-    indoorMeta: '',
     locationTip: '',
     locationState: 'idle',
     locationMeta: '',
@@ -439,66 +435,6 @@ Page({
       mapLatitude: this.data.form.latitude || CAMPUS_CENTER.latitude,
       mapLongitude: this.data.form.longitude || CAMPUS_CENTER.longitude,
       mapScale: 17
-    });
-  },
-
-  tryIndoorEnhancedLocation() {
-    this.setData({
-      indoorLocating: true,
-      locationState: 'idle',
-      locationTip: '正在获取位置...',
-      locationMeta: '仅采集 Wi-Fi/BLE 信号，不调用普通定位',
-      indoorMeta: '正在获取位置...',
-      showCampusMap: false,
-      customMapPoint: null,
-      campusMapMarkers: buildCampusMapMarkers(),
-      locationCandidates: []
-    });
-    collectIndoorSignals().then((signals) => this.applyIndoorSignals(signals));
-  },
-
-  applyIndoorSignals(signals = {}) {
-    const network = signals.network || {};
-    const summary = signals.summary || '获取位置完成';
-    if (network.ok && network.data && network.data.latitude && network.data.longitude) {
-      const candidates = nearestCampusLocations(network.data, 6);
-      const nearest = candidates[0];
-      const accuracy = Math.round(Number(network.data.accuracy) || 0);
-      const meta = `${summary} · 云端返回精度 ${accuracy || '未知'}m`;
-      if (nearest && nearest.distance <= INDOOR_MATCH_DISTANCE) {
-        this.setLocation(nearest, `已获取到 ${nearest.name}`, {
-          meta: `${meta} · 距校内地点 ${nearest.distance}m`,
-          detail: '获取位置',
-          confirm: {
-            ...buildManualLocationConfirm(nearest),
-            label: '获取位置：',
-            confirmText: '已根据获取位置结果匹配校内地点，请确认后发布'
-          }
-        });
-        this.setData({
-          indoorLocating: false,
-          indoorMeta: meta,
-          locationCandidates: candidates
-        });
-        return;
-      }
-      this.setData({
-        indoorLocating: false,
-        indoorMeta: `${meta} · 距校内地点较远，请手动确认`,
-        locationState: 'warn',
-        locationTip: '获取位置结果偏离校内地点，请从候选地点中选择',
-        locationMeta: meta,
-        locationCandidates: candidates.length ? candidates : commonLocations()
-      });
-      return;
-    }
-    this.setData({
-      indoorLocating: false,
-      indoorMeta: `${summary} · ${network.reason || '云端未返回可用位置'}`,
-      locationState: 'warn',
-      locationTip: '获取位置完成，请从候选地点中确认',
-      locationMeta: summary,
-      locationCandidates: commonLocations()
     });
   },
 
@@ -637,7 +573,6 @@ Page({
       locationState: 'idle',
       locationMeta: '',
       locationConfirm: null,
-      indoorMeta: '',
       showCampusMap: false,
       customMapPoint: null,
       campusMapMarkers: buildCampusMapMarkers(),
@@ -888,7 +823,6 @@ Page({
       campusMapMarkers: buildCampusMapMarkers(),
       mapLatitude: CAMPUS_CENTER.latitude,
       mapLongitude: CAMPUS_CENTER.longitude,
-      indoorMeta: '',
       locationTip: '',
       locationState: 'idle',
       locationMeta: '',

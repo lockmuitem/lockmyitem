@@ -52,11 +52,9 @@
       <view class="location-head">
         <view class="row-label">地点</view>
         <view class="location-actions">
-          <button class="indoor-button" loading="{{indoorLocating}}" bindtap="tryIndoorEnhancedLocation" aria-label="获取位置">获取位置</button>
           <button class="map-picker-button" bindtap="openCampusMap" aria-label="打开校内地图选择地点">地图选择</button>
         </view>
       </view>
-      <text wx:if="{{indoorMeta}}" class="indoor-meta">{{indoorMeta}}</text>
       <view wx:if="{{showCampusMap}}" class="campus-map-shell">
         <map
           class="campus-map"
