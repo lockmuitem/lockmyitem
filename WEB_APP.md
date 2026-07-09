@@ -25,6 +25,47 @@ npm run build
 
 构建产物会生成在 `web/dist/`，可以部署到静态网站服务，例如 Vercel、Netlify、GitHub Pages、腾讯云静态网站托管或任意 Nginx。
 
+## 网页端混元图像识别
+
+网页端必须通过服务端调用混元大模型，不能把混元 API Key 写进浏览器代码。当前前端优先复用小程序同一个云函数：
+
+```bash
+VITE_TCB_ENV_ID=cloud1-d9gnyuxf5b44b6b92
+VITE_TCB_FUNCTION_NAME=lostfound
+VITE_TCB_REGION=ap-shanghai
+VITE_TCB_ACCESS_KEY=CloudBase Web Publishable Key
+```
+
+调用数据与小程序一致：
+
+```js
+{
+  action: 'classifyImage',
+  imageBase64,
+  mimeType: 'image/jpeg',
+  hint
+}
+```
+
+云函数会在服务端读取 `HUNYUAN_API_KEY` 或 `TENCENT_SECRET_ID/TENCENT_SECRET_KEY`，再调用腾讯混元视觉模型。上线前需要在 CloudBase 控制台开启 Web 端可调用云函数的权限，并按腾讯 CloudBase Web SDK 要求配置 Publishable Key 或对应权限策略。
+
+如果不走 CloudBase，也可以部署 `web/api/classify-image.js` 作为独立后端代理，前端会读取：
+
+```bash
+VITE_MODEL_API_URL=https://你的后端域名/api/classify-image
+```
+
+`web/api/classify-image.js` 提供了一个 Vercel 风格的服务端接口模板，需要在服务端配置：
+
+```bash
+HUNYUAN_API_KEY=你的混元密钥
+HUNYUAN_BASE_URL=https://api.hunyuan.cloud.tencent.com/v1
+HUNYUAN_MODEL=hunyuan-vision
+ALLOWED_ORIGIN=https://lockmyitem.asia
+```
+
+部署后，图片上传会调用该接口，再由服务端调用腾讯混元视觉模型返回分类、标签和物品描述。网页不会再使用浏览器本地模型伪装成自动识别。
+
 ## 手机浏览器安装
 
 部署到 HTTPS 域名后，用手机浏览器打开网页：

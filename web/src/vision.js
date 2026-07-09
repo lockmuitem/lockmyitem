@@ -1,65 +1,11 @@
-import { classifyByText } from './utils.js';
+const TCB_ENV_ID = import.meta.env.VITE_TCB_ENV_ID || 'cloud1-d9gnyuxf5b44b6b92';
+const TCB_ACCESS_KEY = import.meta.env.VITE_TCB_ACCESS_KEY || '';
+const TCB_REGION = import.meta.env.VITE_TCB_REGION || 'ap-shanghai';
+const TCB_FUNCTION_NAME = import.meta.env.VITE_TCB_FUNCTION_NAME || 'lostfound';
+const TCB_ENABLED = import.meta.env.VITE_DISABLE_TCB_HUNYUAN !== 'true' && Boolean(TCB_ENV_ID);
+const REMOTE_MODEL_ENDPOINT = import.meta.env.VITE_MODEL_API_URL || import.meta.env.VITE_HUNYUAN_API_URL || '';
 
-const REMOTE_MODEL_ENDPOINT = import.meta.env.VITE_MODEL_API_URL || '';
-
-const categoryHints = [
-  {
-    category: '证件',
-    tags: ['卡片', '证件'],
-    patterns: ['card', 'credit card', 'id', 'wallet', 'pass', 'license']
-  },
-  {
-    category: '电子产品',
-    tags: ['电子产品'],
-    patterns: ['cellular telephone', 'cell phone', 'mobile phone', 'laptop', 'computer', 'keyboard', 'mouse', 'ipod', 'remote control', 'earphone', 'headphone']
-  },
-  {
-    category: '书本资料',
-    tags: ['书本资料'],
-    patterns: ['book', 'notebook', 'binder', 'envelope', 'packet', 'paper', 'comic book']
-  },
-  {
-    category: '衣物',
-    tags: ['衣物'],
-    patterns: ['jersey', 'sweatshirt', 'coat', 'suit', 'shirt', 'sock', 'glove', 'hat', 'cap', 'backpack']
-  },
-  {
-    category: '钥匙',
-    tags: ['钥匙'],
-    patterns: ['key', 'chain', 'padlock']
-  },
-  {
-    category: '校园卡',
-    tags: ['校园卡', '卡片'],
-    patterns: ['card', 'credit card', 'id card']
-  },
-  {
-    category: '雨伞',
-    tags: ['雨伞'],
-    patterns: ['umbrella']
-  },
-  {
-    category: '水杯',
-    tags: ['水杯'],
-    patterns: ['water bottle', 'bottle', 'cup', 'mug']
-  }
-];
-
-let modelPromise = null;
-
-function getModel() {
-  if (!modelPromise) {
-    modelPromise = Promise.all([
-      import('@tensorflow/tfjs'),
-      import('@tensorflow-models/mobilenet')
-    ]).then(async ([tf, mobilenet]) => {
-      await tf.setBackend('cpu');
-      await tf.ready();
-      return mobilenet.load({ version: 2, alpha: 1.0 });
-    });
-  }
-  return modelPromise;
-}
+let cloudbaseAppPromise = null;
 
 function unique(values = []) {
   return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
@@ -67,18 +13,24 @@ function unique(values = []) {
 
 function normalizeRemoteData(raw = {}) {
   const payload = raw && raw.data && !raw.category && !raw.aiTags ? raw.data : raw;
-  const tags = unique([]
+  const tags = unique([])
     .concat(payload.aiTags || [])
     .concat(payload.tags || [])
     .concat(payload.semanticTags || [])
     .concat(payload.objects || [])
-    .concat(payload.yoloObjects || []));
+    .concat(payload.yoloObjects || []);
+
   return {
-    title: payload.title || payload.name || '',
+    title: payload.title || payload.name || payload.category || '',
     description: payload.description || payload.visualDescription || payload.caption || '',
-    category: payload.category || '',
-    tags,
+    category: payload.category || '其他',
+    tags: unique(tags),
     visualDescription: payload.visualDescription || payload.description || payload.caption || '',
+    yoloObjects: payload.yoloObjects || payload.objects || [],
+    semanticTags: payload.semanticTags || payload.tags || [],
+    imageEmbedding: payload.imageEmbedding || [],
+    semanticEmbedding: payload.semanticEmbedding || [],
+    modelSources: payload.modelSources || {},
     rawPredictions: payload.rawPredictions || []
   };
 }
@@ -101,7 +53,7 @@ function imageFromDataUrl(dataUrl) {
   });
 }
 
-function compressDataUrl(dataUrl, maxSize = 1024, quality = 0.76) {
+function compressDataUrl(dataUrl, maxSize = 1280, quality = 0.78) {
   return imageFromDataUrl(dataUrl).then((image) => {
     const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
     const canvas = document.createElement('canvas');
@@ -113,34 +65,42 @@ function compressDataUrl(dataUrl, maxSize = 1024, quality = 0.76) {
   });
 }
 
-function classifyPredictions(predictions = [], hint = '') {
-  const source = predictions.map((entry) => entry.className).join(' ').toLowerCase();
-  const hinted = classifyByText(hint);
-  if (hinted.confidence > 0) return { ...hinted, confidence: Math.max(hinted.confidence, 0.72) };
-
-  for (const rule of categoryHints) {
-    if (rule.patterns.some((pattern) => source.includes(pattern))) {
-      return {
-        category: rule.category,
-        tags: unique([rule.category, ...rule.tags]),
-        confidence: Math.max(predictions[0]?.probability || 0.5, 0.58)
-      };
-    }
-  }
-
-  return { category: '其他', tags: ['待确认'], confidence: predictions[0]?.probability || 0 };
+function endpointRequiredMessage() {
+  return [
+    '网页端混元识别不可用。',
+    '请确认 CloudBase Web 权限已允许调用 lostfound 云函数，',
+    '或配置 VITE_MODEL_API_URL 指向 web/api/classify-image.js 这样的后端代理。'
+  ].join('');
 }
 
-function fallbackByText(hint = '') {
-  const classification = classifyByText(hint);
-  return {
-    title: classification.category,
-    description: classification.confidence > 0 ? `根据文字线索识别为${classification.category}` : '图片已上传，物品特征待确认',
-    category: classification.category,
-    tags: classification.tags || ['待确认'],
-    visualDescription: classification.confidence > 0 ? `根据文字线索识别为${classification.category}` : '图片已上传，物品特征待确认',
-    rawPredictions: []
-  };
+function parseMaybeJson(value) {
+  if (!value || typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function readableError(error, fallback = '调用失败') {
+  const parts = [
+    error?.message,
+    error?.msg,
+    error?.errMsg,
+    error?.code,
+    error?.errCode,
+    error?.error?.message,
+    error?.error?.code
+  ].filter(Boolean);
+  if (parts.length) return parts.join(' ');
+  try {
+    const json = JSON.stringify(error);
+    if (json && json !== '{}') return json;
+  } catch {
+    // Ignore serialization failures and use the fallback below.
+  }
+  const text = String(error || '');
+  return text && text !== '[object Object]' ? text : fallback;
 }
 
 function withTimeout(promise, ms, message) {
@@ -151,8 +111,69 @@ function withTimeout(promise, ms, message) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 
-async function classifyViaRemote(dataUrl, hint) {
-  if (!REMOTE_MODEL_ENDPOINT) return null;
+async function getCloudbaseApp() {
+  if (!cloudbaseAppPromise) {
+    cloudbaseAppPromise = Promise.resolve().then(async () => {
+      const { default: cloudbase } = await import('@cloudbase/js-sdk');
+      const config = {
+        env: TCB_ENV_ID,
+        region: TCB_REGION
+      };
+      if (TCB_ACCESS_KEY) config.accessKey = TCB_ACCESS_KEY;
+      const app = cloudbase.init(config);
+      await ensureCloudbaseAuth(app);
+      return app;
+    });
+  }
+  return cloudbaseAppPromise;
+}
+
+async function ensureCloudbaseAuth(app) {
+  const auth = typeof app.auth === 'function' ? app.auth({ persistence: 'local' }) : app.auth;
+  if (!auth || TCB_ACCESS_KEY) return;
+
+  const state = await (auth.hasLoginState?.() || auth.getLoginState?.()).catch(() => null);
+  if (state) return;
+
+  const provider = typeof auth.anonymousAuthProvider === 'function'
+    ? auth.anonymousAuthProvider()
+    : auth.anonymousAuthProvider;
+  if (provider?.signIn) {
+    await provider.signIn();
+  }
+}
+
+async function classifyViaCloudbase(dataUrl, hint) {
+  if (!TCB_ENABLED) return null;
+
+  const compressed = await compressDataUrl(dataUrl);
+  const app = await getCloudbaseApp();
+  const response = await withTimeout(
+    app.callFunction({
+      name: TCB_FUNCTION_NAME,
+      parse: true,
+      data: {
+        action: 'classifyImage',
+        imageBase64: compressed.replace(/^data:[^,]+,/, ''),
+        mimeType: 'image/jpeg',
+        hint
+      }
+    }),
+    30000,
+    '调用小程序云函数混元识别超时'
+  );
+  const body = parseMaybeJson(response?.result) || {};
+  if (!body.ok) {
+    throw new Error(body.message || body.error || '小程序云函数 classifyImage 返回失败');
+  }
+  return normalizeRemoteData(body.data);
+}
+
+async function classifyViaHunyuan(dataUrl, hint) {
+  if (!REMOTE_MODEL_ENDPOINT) {
+    return null;
+  }
+
   const compressed = await compressDataUrl(dataUrl);
   const response = await fetch(REMOTE_MODEL_ENDPOINT, {
     method: 'POST',
@@ -165,63 +186,38 @@ async function classifyViaRemote(dataUrl, hint) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.ok === false) {
-    throw new Error(body.message || body.error || `HTTP ${response.status}`);
+    throw new Error(body.message || body.error || `混元识别接口返回 HTTP ${response.status}`);
   }
   return normalizeRemoteData(body.ok ? body.data : body);
-}
-
-async function classifyViaBrowser(dataUrl, hint) {
-  const image = await imageFromDataUrl(dataUrl);
-  const model = await withTimeout(getModel(), 18000, '浏览器识别模型加载超时');
-  const predictions = await withTimeout(model.classify(image, 5), 12000, '浏览器识别超时');
-  const classification = classifyPredictions(predictions, hint);
-  const readable = predictions
-    .slice(0, 3)
-    .map((entry) => entry.className.split(',')[0])
-    .join('、');
-  return {
-    title: classification.category,
-    description: readable ? `图片可能包含：${readable}` : '',
-    category: classification.category,
-    tags: unique([...(classification.tags || []), ...predictions.slice(0, 3).map((entry) => entry.className.split(',')[0])]),
-    visualDescription: readable ? `图片可能包含：${readable}` : '',
-    rawPredictions: predictions
-  };
 }
 
 export async function recognizeImageFile(file, hint = '') {
   const dataUrl = await fileToDataUrl(file);
   const textHint = `${hint || ''} ${file?.name || ''}`.trim();
+  const errors = [];
+  let data = null;
+
   try {
-    const remote = await classifyViaRemote(dataUrl, textHint);
-    if (remote) return { image: dataUrl, data: remote, source: 'remote' };
+    data = await classifyViaCloudbase(dataUrl, textHint);
   } catch (error) {
+    errors.push(`小程序云函数混元识别失败：${readableError(error)}`);
+  }
+
+  if (!data) {
     try {
-      const browser = await classifyViaBrowser(dataUrl, textHint);
-      return {
-        image: dataUrl,
-        data: browser,
-        source: 'browser',
-        warning: `远程识别不可用，已改用浏览器识别：${error.message || '接口调用失败'}`
-      };
-    } catch (browserError) {
-      return {
-        image: dataUrl,
-        data: fallbackByText(textHint),
-        source: 'text',
-        warning: `图片模型暂时不可用，已根据文字线索预填：${browserError.message || '模型加载失败'}`
-      };
+      data = await classifyViaHunyuan(dataUrl, textHint);
+    } catch (error) {
+      errors.push(`后端混元代理识别失败：${readableError(error)}`);
     }
   }
-  try {
-    const browser = await classifyViaBrowser(dataUrl, textHint);
-    return { image: dataUrl, data: browser, source: 'browser' };
-  } catch (error) {
-    return {
-      image: dataUrl,
-      data: fallbackByText(textHint),
-      source: 'text',
-      warning: `图片模型暂时不可用，已根据文字线索预填：${error.message || '模型加载失败'}`
-    };
+
+  if (!data) {
+    throw new Error(errors.length ? errors.join('；') : endpointRequiredMessage());
   }
+
+  return {
+    image: dataUrl,
+    data,
+    source: 'hunyuan'
+  };
 }
