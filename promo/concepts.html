@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>上科大失物招领海报方向</title>
+    <style>
+      :root {
+        --ink: #0b2329;
+        --deep: #103b44;
+        --mint: #a6d9d1;
+        --warm: #d89022;
+        --paper: #f4f2e8;
+        --blue: #315d99;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #cddadd;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      }
+
+      .poster {
+        position: relative;
+        width: 1123px;
+        height: 1588px;
+        margin: 0 0 48px;
+        overflow: hidden;
+        isolation: isolate;
+        background: var(--paper);
+        color: var(--ink);
+        box-shadow: 0 28px 72px rgba(11, 35, 41, 0.28);
+      }
+
+      .qr {
+        background: #fff;
+        box-shadow: 0 22px 44px rgba(11, 35, 41, 0.22);
+      }
+
+      .qr img { display: block; width: 100%; height: 100%; }
+      .photo {
+        position: absolute;
+        overflow: hidden;
+        background: #fff;
+        border: 10px solid #fff;
+        box-shadow: 0 20px 42px rgba(11, 35, 41, 0.22);
+      }
+      .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+      .rail {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 104px;
+        height: 100%;
+        background: var(--deep);
+        color: rgba(255,255,255,.86);
+        font-size: 17px;
+        font-weight: 950;
+        letter-spacing: .18em;
+        writing-mode: vertical-rl;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 72px 35px;
+      }
+
+      .school {
+        position: absolute;
+        top: 68px;
+        left: 72px;
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        height: 46px;
+        padding: 0 18px;
+        border: 1px solid rgba(255,255,255,.24);
+        color: #fff;
+        background: rgba(255,255,255,.1);
+        font-size: 20px;
+        font-weight: 950;
+      }
+      .school::before { content: ""; width: 12px; height: 12px; background: var(--warm); }
+
+      /* 01: Wanted poster */
+      .wanted {
+        background:
+          linear-gradient(106deg, #092a31 0 57%, transparent 57%),
+          linear-gradient(180deg, #eef5f4 0 100%);
+      }
+      .wanted .headline {
+        position: absolute;
+        top: 148px;
+        left: 68px;
+        color: #fff;
+      }
+      .wanted h1 {
+        margin: 0;
+        font-size: 140px;
+        line-height: .9;
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+      .wanted h1 b { color: #ffd18a; }
+      .wanted .stamp {
+        display: inline-block;
+        margin-top: 22px;
+        padding: 14px 28px 18px;
+        color: var(--ink);
+        background: #ffd18a;
+        font-size: 52px;
+        font-weight: 950;
+        transform: rotate(-3deg);
+      }
+      .wanted .qr {
+        position: absolute;
+        top: 276px;
+        right: 128px;
+        width: 352px;
+        padding: 24px;
+        transform: rotate(2.5deg);
+      }
+      .wanted .qr img { width: 304px; height: 304px; }
+      .wanted .qr strong {
+        display: block;
+        margin-top: 16px;
+        text-align: center;
+        font-size: 28px;
+        font-weight: 950;
+      }
+      .wanted .url {
+        position: absolute;
+        top: 660px;
+        left: 76px;
+        width: 760px;
+        padding: 24px 32px;
+        background: #fff;
+        box-shadow: 0 20px 42px rgba(11,35,41,.18);
+        font-size: 42px;
+        font-weight: 950;
+      }
+      .wanted .url span { margin-right: 22px; color: #687c82; font-size: 22px; }
+      .wanted .p1 { left: 80px; top: 790px; width: 262px; height: 330px; transform: rotate(-7deg); }
+      .wanted .p2 { left: 330px; top: 835px; width: 268px; height: 346px; transform: rotate(4deg); }
+      .wanted .p3 { right: 120px; top: 780px; width: 304px; height: 360px; transform: rotate(8deg); }
+      .wanted .ai {
+        position: absolute;
+        top: 1015px;
+        left: 176px;
+        display: grid;
+        grid-template-columns: 126px 1fr;
+        width: 732px;
+        min-height: 124px;
+        background: #fff;
+        transform: rotate(-2deg);
+        box-shadow: 0 18px 38px rgba(11,35,41,.16);
+      }
+      .wanted .ai b { display: grid; place-items: center; background: #ffd18a; font-size: 46px; font-weight: 950; }
+      .wanted .ai span { align-self: center; padding: 22px 30px; font-size: 27px; font-weight: 950; line-height: 1.3; }
+      .wanted .steps {
+        position: absolute;
+        left: 78px;
+        bottom: 86px;
+        display: grid;
+        grid-template-columns: 210px 1fr 1fr;
+        gap: 14px;
+        width: 808px;
+      }
+      .wanted .steps div { min-height: 116px; padding: 18px 20px; background: #fff; font-size: 17px; font-weight: 800; line-height: 1.35; }
+      .wanted .steps .install { display: grid; place-items: center; color: #fff; background: var(--warm); font-size: 32px; font-weight: 950; }
+
+      /* 02: Evidence wall */
+      .evidence {
+        background: #0b2329;
+        color: #fff;
+      }
+      .evidence::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background: linear-gradient(157deg, transparent 0 39%, rgba(166,217,209,.16) 39% 63%, transparent 63%);
+      }
+      .evidence .school { background: rgba(255,255,255,.09); }
+      .evidence h1 {
+        position: absolute;
+        top: 160px;
+        left: 72px;
+        width: 560px;
+        margin: 0;
+        font-size: 122px;
+        line-height: .94;
+        font-weight: 950;
+      }
+      .evidence h1 b { color: #ffd18a; }
+      .evidence .qr {
+        position: absolute;
+        right: 124px;
+        top: 146px;
+        width: 312px;
+        padding: 20px;
+        transform: rotate(-3deg);
+      }
+      .evidence .qr img { width: 272px; height: 272px; }
+      .evidence .qr strong { display: block; margin-top: 14px; color: var(--ink); text-align: center; font-size: 25px; font-weight: 950; }
+      .evidence .url {
+        position: absolute;
+        left: 72px;
+        top: 575px;
+        padding: 18px 26px;
+        color: var(--ink);
+        background: #ffd18a;
+        font-size: 43px;
+        font-weight: 950;
+        transform: rotate(-2deg);
+      }
+      .evidence .p1 { left: 98px; top: 760px; width: 300px; height: 360px; transform: rotate(7deg); }
+      .evidence .p2 { left: 412px; top: 690px; width: 310px; height: 392px; transform: rotate(-5deg); }
+      .evidence .p3 { right: 132px; top: 720px; width: 315px; height: 380px; transform: rotate(6deg); }
+      .evidence .strip {
+        position: absolute;
+        left: 76px;
+        right: 150px;
+        top: 1084px;
+        display: grid;
+        grid-template-columns: 132px 1fr;
+        min-height: 126px;
+        color: var(--ink);
+        background: #fff;
+      }
+      .evidence .strip b { display: grid; place-items: center; background: #ffd18a; font-size: 45px; font-weight: 950; }
+      .evidence .strip span { align-self: center; padding: 24px 30px; font-size: 28px; font-weight: 950; line-height: 1.25; }
+      .evidence .bottom {
+        position: absolute;
+        left: 76px;
+        bottom: 82px;
+        display: flex;
+        gap: 14px;
+        width: 810px;
+      }
+      .evidence .bottom div { flex: 1; padding: 18px 20px; color: var(--ink); background: #fff; font-size: 17px; font-weight: 800; line-height: 1.35; }
+      .evidence .bottom .tag { flex: 0 0 210px; display: grid; place-items: center; color: #fff; background: var(--warm); font-size: 30px; font-weight: 950; }
+
+      /* 03: Signal map */
+      .signal {
+        background:
+          linear-gradient(111deg, #f4f6ee 0 48%, #092a31 48% 100%);
+      }
+      .signal .school { color: var(--ink); background: #fff; border-color: rgba(11,35,41,.16); }
+      .signal h1 {
+        position: absolute;
+        top: 142px;
+        left: 72px;
+        margin: 0;
+        width: 612px;
+        color: var(--ink);
+        font-size: 130px;
+        line-height: .92;
+        font-weight: 950;
+      }
+      .signal h1 b { color: var(--warm); }
+      .signal .arrow {
+        position: absolute;
+        top: 492px;
+        left: 72px;
+        width: 622px;
+        min-height: 126px;
+        padding: 28px 34px;
+        color: #fff;
+        background: var(--deep);
+        font-size: 35px;
+        font-weight: 950;
+      }
+      .signal .arrow::after {
+        position: absolute;
+        right: -92px;
+        top: 0;
+        content: "";
+        width: 92px;
+        height: 100%;
+        background: var(--deep);
+        clip-path: polygon(0 0, 100% 50%, 0 100%);
+      }
+      .signal .qr {
+        position: absolute;
+        top: 255px;
+        right: 122px;
+        width: 340px;
+        padding: 23px;
+      }
+      .signal .qr img { width: 294px; height: 294px; }
+      .signal .qr strong { display: block; margin-top: 14px; text-align: center; font-size: 27px; font-weight: 950; }
+      .signal .url {
+        position: absolute;
+        right: 140px;
+        top: 682px;
+        color: #fff;
+        font-size: 38px;
+        font-weight: 950;
+        transform: rotate(-2deg);
+      }
+      .signal .p1 { left: 92px; top: 760px; width: 280px; height: 340px; transform: rotate(-5deg); }
+      .signal .p2 { left: 344px; top: 850px; width: 278px; height: 342px; transform: rotate(4deg); }
+      .signal .p3 { right: 126px; top: 764px; width: 304px; height: 360px; transform: rotate(5deg); }
+      .signal .ai {
+        position: absolute;
+        left: 138px;
+        top: 1110px;
+        width: 760px;
+        min-height: 110px;
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        background: #fff;
+        transform: rotate(-2deg);
+      }
+      .signal .ai b { display: grid; place-items: center; background: #ffd18a; font-size: 44px; font-weight: 950; }
+      .signal .ai span { align-self: center; padding: 18px 28px; color: var(--ink); font-size: 26px; font-weight: 950; line-height: 1.25; }
+      .signal .bottom {
+        position: absolute;
+        left: 76px;
+        bottom: 82px;
+        display: grid;
+        grid-template-columns: 180px 1fr 1fr;
+        gap: 14px;
+        width: 812px;
+      }
+      .signal .bottom div { min-height: 108px; padding: 18px 20px; background: #fff; font-size: 16px; font-weight: 800; line-height: 1.35; }
+      .signal .bottom .install { display: grid; place-items: center; color: #fff; background: var(--warm); font-size: 30px; font-weight: 950; }
+    </style>
+  </head>
+  <body>
+    <article class="poster wanted" id="concept-1">
+      <div class="rail"><strong>ShanghaiTech Lost & Found</strong><span>POSTER 01</span></div>
+      <div class="school">上海科技大学校园互助服务</div>
+      <section class="headline">
+        <h1>丢了？<br /><b>扫码</b></h1>
+        <strong class="stamp">先搜一下</strong>
+      </section>
+      <section class="qr"><img src="./lockmyitem-qr.svg" alt="" /><strong>扫码进入失物招领</strong></section>
+      <div class="url"><span>网站入口</span>lockmyitem.asia</div>
+      <div class="photo p1"><img src="../web/src/assets/items/keys.jpg" alt="" /></div>
+      <div class="photo p2"><img src="../web/src/assets/items/card.jpg" alt="" /></div>
+      <div class="photo p3"><img src="../web/src/assets/items/umbrella.jpg" alt="" /></div>
+      <div class="ai"><b>AI</b><span>识别物品标签，按分类、颜色、地点和细节提示可能匹配。</span></div>
+      <section class="steps">
+        <div class="install">下载 / 安装</div>
+        <div><strong>Android</strong><br />Chrome 或 Edge 打开网站，点击“安装应用”。</div>
+        <div><strong>iPhone</strong><br />Safari 打开网站，分享菜单中选择“添加到主屏幕”。</div>
+      </section>
+    </article>
+
+    <article class="poster evidence" id="concept-2">
+      <div class="rail"><strong>ShanghaiTech Lost & Found</strong><span>POSTER 02</span></div>
+      <div class="school">上海科技大学校园互助服务</div>
+      <h1>别让<br />失物<br /><b>失联</b></h1>
+      <section class="qr"><img src="./lockmyitem-qr.svg" alt="" /><strong>扫码先搜</strong></section>
+      <div class="url">lockmyitem.asia</div>
+      <div class="photo p1"><img src="../web/src/assets/items/keys.jpg" alt="" /></div>
+      <div class="photo p2"><img src="../web/src/assets/items/card.jpg" alt="" /></div>
+      <div class="photo p3"><img src="../web/src/assets/items/umbrella.jpg" alt="" /></div>
+      <div class="strip"><b>AI</b><span>拍照、标地点、发线索，让物品回家。</span></div>
+      <section class="bottom">
+        <div class="tag">下载 / 安装</div>
+        <div><strong>Android</strong><br />Chrome 或 Edge 打开网站，点击“安装应用”。</div>
+        <div><strong>iPhone</strong><br />Safari 打开网站，分享菜单中选择“添加到主屏幕”。</div>
+      </section>
+    </article>
+
+    <article class="poster signal" id="concept-3">
+      <div class="rail"><strong>ShanghaiTech Lost & Found</strong><span>POSTER 03</span></div>
+      <div class="school">上海科技大学校园互助服务</div>
+      <h1>地点<br />线索<br /><b>都在这里</b></h1>
+      <div class="arrow">丢了先搜，捡到就发</div>
+      <section class="qr"><img src="./lockmyitem-qr.svg" alt="" /><strong>扫码进入失物招领</strong></section>
+      <div class="url">lockmyitem.asia</div>
+      <div class="photo p1"><img src="../web/src/assets/items/keys.jpg" alt="" /></div>
+      <div class="photo p2"><img src="../web/src/assets/items/card.jpg" alt="" /></div>
+      <div class="photo p3"><img src="../web/src/assets/items/umbrella.jpg" alt="" /></div>
+      <div class="ai"><b>AI</b><span>按分类、颜色、地点和细节提示可能匹配。</span></div>
+      <section class="bottom">
+        <div class="install">下载 / 安装</div>
+        <div><strong>Android</strong><br />Chrome 或 Edge 打开网站，点击“安装应用”。</div>
+        <div><strong>iPhone</strong><br />Safari 打开网站，分享菜单中选择“添加到主屏幕”。</div>
+      </section>
+    </article>
+  </body>
+</html>

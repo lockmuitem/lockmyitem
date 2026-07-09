@@ -12,6 +12,8 @@ dist/
 build/
 .cache/
 coverage/
+_deploy_*/
+*.zip
 
 # Logs
 *.log
@@ -27,3 +29,7 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local Codex workspace files
+.agents/
+skills-lock.json

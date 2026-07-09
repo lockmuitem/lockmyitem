@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>上科大失物招领宣传海报</title>
+    <style>
+      :root {
+        --black: #050505;
+        --mint: #18efc7;
+        --mint-light: #e8fbf6;
+        --pink: #f58e9f;
+        --pink-soft: #ffbdc9;
+        --paper: #fbfffb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #bde9e3;
+        font-family: Impact, Haettenschweiler, "Arial Black", "Microsoft YaHei", "PingFang SC", sans-serif;
+      }
+
+      .poster {
+        position: relative;
+        width: 1123px;
+        height: 1588px;
+        overflow: hidden;
+        isolation: isolate;
+        color: var(--black);
+        background:
+          radial-gradient(circle at 16% 82%, rgba(24, 239, 199, 0.94), transparent 27%),
+          radial-gradient(circle at 82% 15%, rgba(255, 255, 255, 0.78), transparent 22%),
+          linear-gradient(158deg, #17efc7 0%, #eefdf5 45%, #12edc8 100%);
+        box-shadow: 0 30px 76px rgba(0, 0, 0, 0.28);
+      }
+
+      .poster::before {
+        position: absolute;
+        inset: 160px -104px 248px -132px;
+        z-index: -2;
+        content: "";
+        background: var(--pink-soft);
+        opacity: 0.82;
+        clip-path: polygon(
+          44% 0%, 51% 22%, 69% 10%, 66% 31%, 90% 25%, 76% 43%,
+          100% 54%, 75% 61%, 88% 80%, 66% 75%, 62% 100%, 48% 80%,
+          31% 93%, 33% 69%, 7% 75%, 24% 56%, 0% 44%, 26% 39%,
+          12% 17%, 35% 26%
+        );
+      }
+
+      .topbar {
+        position: absolute;
+        top: 56px;
+        left: 52px;
+        right: 52px;
+        z-index: 7;
+        display: grid;
+        grid-template-columns: 1fr 154px;
+        align-items: start;
+        gap: 24px;
+        padding-bottom: 13px;
+        border-bottom: 8px solid var(--black);
+      }
+
+      .brand {
+        display: block;
+        font-size: 45px;
+        font-weight: 950;
+        line-height: 0.9;
+        letter-spacing: -0.02em;
+      }
+
+      .subcopy {
+        display: block;
+        margin-top: 16px;
+        max-width: 760px;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        font-size: 21px;
+        font-weight: 950;
+        line-height: 1.18;
+      }
+
+      .barcode {
+        height: 62px;
+        background:
+          linear-gradient(90deg,
+            #000 0 6px, transparent 6px 12px,
+            #000 12px 18px, transparent 18px 27px,
+            #000 27px 33px, transparent 33px 43px,
+            #000 43px 53px, transparent 53px 60px,
+            #000 60px 64px, transparent 64px 75px,
+            #000 75px 91px, transparent 91px 99px,
+            #000 99px 106px, transparent 106px 116px,
+            #000 116px 124px, transparent 124px 132px,
+            #000 132px 154px);
+      }
+
+      .bubble {
+        position: absolute;
+        z-index: 8;
+        display: inline-flex;
+        align-items: center;
+        min-height: 58px;
+        padding: 6px 18px 8px;
+        border: 7px solid var(--black);
+        border-radius: 999px;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        font-size: 30px;
+        font-weight: 950;
+        line-height: 1;
+        white-space: nowrap;
+        box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15);
+      }
+
+      .bubble.black {
+        color: #fff;
+        background: var(--black);
+      }
+
+      .bubble.white {
+        color: var(--black);
+        background: #fff;
+      }
+
+      .bubble .x {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        margin-right: 13px;
+        color: var(--black);
+        background: #fff;
+        border-radius: 50%;
+        font-size: 33px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .bubble.white .x {
+        margin-right: 0;
+        margin-left: 13px;
+        color: #fff;
+        background: var(--black);
+      }
+
+      .b1 {
+        top: 178px;
+        left: 52px;
+      }
+
+      .headline {
+        position: absolute;
+        top: 286px;
+        left: 48px;
+        z-index: 6;
+        width: 720px;
+      }
+
+      .headline .en {
+        display: block;
+        color: var(--black);
+        font-size: 104px;
+        font-weight: 950;
+        line-height: 1.12;
+        letter-spacing: -0.042em;
+      }
+
+      .headline .en + .en {
+        margin-top: 10px;
+      }
+
+      .headline .cn {
+        display: block;
+        margin-top: 10px;
+        color: var(--black);
+        font-size: 164px;
+        font-weight: 950;
+        line-height: 0.96;
+        letter-spacing: -0.055em;
+        transform: skewX(-5deg);
+      }
+
+      .headline .small-cn {
+        display: block;
+        margin-top: 12px;
+        padding-left: 92px;
+        font-size: 72px;
+        font-weight: 950;
+        line-height: 1;
+        letter-spacing: -0.035em;
+      }
+
+      .vertical-lost {
+        position: absolute;
+        top: 188px;
+        right: 42px;
+        z-index: 1;
+        color: rgba(245, 120, 136, 0.84);
+        font-size: 108px;
+        font-weight: 950;
+        line-height: 0.78;
+        letter-spacing: -0.035em;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+      }
+
+      .item-orbit {
+        position: absolute;
+        top: 336px;
+        right: 114px;
+        z-index: 4;
+        width: 332px;
+        height: 76px;
+        border: 7px solid var(--black);
+        border-radius: 50%;
+        transform: rotate(-7deg);
+      }
+
+      .item-orbit::before,
+      .item-orbit::after {
+        position: absolute;
+        right: 19px;
+        height: 7px;
+        content: "";
+        background: var(--black);
+        transform-origin: right center;
+      }
+
+      .item-orbit::before {
+        top: 22px;
+        width: 96px;
+        transform: rotate(12deg);
+      }
+
+      .item-orbit::after {
+        top: 44px;
+        width: 91px;
+        transform: rotate(-13deg);
+      }
+
+      .illustration {
+        position: absolute;
+        left: 330px;
+        top: 722px;
+        z-index: 3;
+        width: 456px;
+        height: 535px;
+        overflow: hidden;
+        transform: rotate(-2.5deg);
+      }
+
+      .illustration img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 56%;
+      }
+
+      .note {
+        position: absolute;
+        top: 792px;
+        left: 58px;
+        z-index: 7;
+        width: 248px;
+        padding: 16px 18px 18px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 6px solid var(--black);
+        border-radius: 22px;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        font-size: 22px;
+        font-weight: 950;
+        line-height: 1.24;
+      }
+
+      .note strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 30px;
+        line-height: 1;
+      }
+
+      .qr-card {
+        position: absolute;
+        right: 50px;
+        top: 930px;
+        z-index: 9;
+        width: 284px;
+        padding: 18px 17px 15px;
+        background: #fff;
+        border: 7px solid var(--black);
+        border-radius: 26px;
+        transform: rotate(1.5deg);
+      }
+
+      .qr-card img {
+        display: block;
+        width: 236px;
+        height: 236px;
+        margin: 0 auto;
+      }
+
+      .qr-card strong {
+        display: block;
+        margin-top: 10px;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        font-size: 27px;
+        font-weight: 950;
+        line-height: 1.05;
+        text-align: center;
+      }
+
+      .url-pill {
+        position: absolute;
+        right: 50px;
+        top: 1284px;
+        z-index: 9;
+        width: 284px;
+        padding: 12px 16px 15px;
+        color: #fff;
+        background: var(--black);
+        border-radius: 999px;
+        font-size: 28px;
+        font-weight: 950;
+        line-height: 1;
+        text-align: center;
+      }
+
+      .b2 {
+        top: 1302px;
+        left: 52px;
+        font-size: 32px;
+      }
+
+      .b3 {
+        top: 1368px;
+        left: 356px;
+        font-size: 28px;
+      }
+
+      .install {
+        position: absolute;
+        left: 50px;
+        right: 388px;
+        bottom: 48px;
+        z-index: 8;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .install div {
+        min-height: 90px;
+        padding: 17px 20px 16px;
+        background: #fff;
+        border: 6px solid var(--black);
+        border-radius: 22px;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        font-size: 20px;
+        font-weight: 950;
+        line-height: 1.3;
+      }
+
+      .corner-tag {
+        position: absolute;
+        right: 52px;
+        bottom: 54px;
+        z-index: 8;
+        width: 286px;
+        padding: 17px 20px 19px;
+        color: var(--black);
+        background: var(--pink-soft);
+        border: 6px solid var(--black);
+        border-radius: 22px;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        font-size: 22px;
+        font-weight: 950;
+        line-height: 1.25;
+      }
+
+      .scribble {
+        position: absolute;
+        z-index: 2;
+        width: 150px;
+        height: 70px;
+        border-top: 7px solid var(--pink);
+        border-bottom: 7px solid var(--pink);
+        border-radius: 50%;
+        opacity: 0.72;
+        transform: rotate(24deg);
+      }
+
+      .s1 {
+        top: 730px;
+        left: 42px;
+      }
+
+      .s2 {
+        top: 666px;
+        right: 350px;
+        transform: rotate(-22deg);
+      }
+
+      .s3 {
+        bottom: 374px;
+        left: 176px;
+        transform: rotate(-18deg);
+      }
+
+      @media print {
+        body {
+          padding: 0;
+          background: #fff;
+        }
+
+        .poster {
+          width: 100vw;
+          height: 141.4vw;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="poster" aria-label="上科大校园失物招领宣传海报">
+      <header class="topbar">
+        <div>
+          <strong class="brand">LOST &amp; FOUND</strong>
+          <span class="subcopy">上科大校园失物招领 | 丢了先搜，捡到就发，帮物品回家</span>
+        </div>
+        <div class="barcode" aria-hidden="true"></div>
+      </header>
+
+      <div class="bubble black b1"><span class="x">×</span>我的校园卡 / 钥匙 / 雨伞去哪了？</div>
+      <div class="vertical-lost">LOST &amp; FOUND</div>
+
+      <section class="headline">
+        <span class="en">LOST &amp;</span>
+        <span class="en">FOUND</span>
+        <span class="cn">失物招领</span>
+        <span class="small-cn">扫码先搜</span>
+      </section>
+
+      <div class="item-orbit" aria-hidden="true"></div>
+      <div class="scribble s1" aria-hidden="true"></div>
+      <div class="scribble s2" aria-hidden="true"></div>
+      <div class="scribble s3" aria-hidden="true"></div>
+
+      <div class="illustration">
+        <img src="./lostfound-illustration.png" alt="校园卡、钥匙和雨伞从纸箱中出现的失物招领插画" />
+      </div>
+
+      <p class="note">
+        <strong>AI 智能匹配</strong>
+        按分类、颜色、地点和细节提示可能匹配，让寻找更快一点。
+      </p>
+
+      <section class="qr-card">
+        <img src="./lockmyitem-qr.svg" alt="访问 lockmyitem.asia 的二维码" />
+        <strong>扫码进入<br />失物招领</strong>
+      </section>
+      <div class="url-pill">lockmyitem.asia</div>
+
+      <div class="bubble black b2"><span class="x">×</span>丢了先搜，别慌~</div>
+      <div class="bubble white b3">捡到就发布，让物品回家<span class="x">×</span></div>
+
+      <section class="install">
+        <div><strong>Android</strong><br />Chrome / Edge 打开网站，点击“安装应用”。</div>
+        <div><strong>iPhone</strong><br />Safari 打开网站，分享菜单选择“添加到主屏幕”。</div>
+      </section>
+      <div class="corner-tag">搜索入口 / 下载方式都在二维码里，校内张贴可直接扫码使用。</div>
+    </article>
+  </body>
+</html>
