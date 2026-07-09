@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { categories, locations } from './data.js';
-import { createItem, loadItems, saveItems } from './store.js';
+import { clearUser, createItem, loadItems, loadUser, saveItems, saveUser } from './store.js';
 import { classifyByText, findPotentialMatches, formatDate, getLocation } from './utils.js';
+import { recognizeImageFile } from './vision.js';
 import campusBoardImage from './assets/notice/campus-board.jpg';
 import doneIcon from './assets/tabbar/done.png';
 import doneActiveIcon from './assets/tabbar/done-active.png';
@@ -21,10 +22,12 @@ const tabItems = [
 
 function App() {
   const [items, setItems] = useState(() => loadItems());
+  const [currentUser, setCurrentUser] = useState(() => loadUser());
   const [view, setView] = useState('found');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [selectedId, setSelectedId] = useState(null);
   const [toast, setToast] = useState('');
+  const [authPrompt, setAuthPrompt] = useState(null);
 
   useEffect(() => {
     saveItems(items);
@@ -59,13 +62,24 @@ function App() {
     setView(key);
   }
 
+  function requireAuth(actionLabel, onAuthed) {
+    if (currentUser) {
+      onAuthed(currentUser);
+      return;
+    }
+    setAuthPrompt({ actionLabel, onAuthed });
+  }
+
   function openPublish(type = 'found') {
-    setView(type === 'lost' ? 'publish-lost' : 'publish-found');
+    requireAuth(type === 'lost' ? '发布寻物' : '发布招领', () => {
+      setView(type === 'lost' ? 'publish-lost' : 'publish-found');
+    });
   }
 
   function publishItem(payload) {
     const nextItem = createItem({
       ...payload,
+      ownerName: currentUser?.nickName || payload.ownerName,
       title: payload.title || (payload.type === 'lost' ? '未命名寻物' : '未命名招领'),
       description: payload.description || '暂无补充描述'
     });
@@ -73,6 +87,39 @@ function App() {
     setSelectedId(nextItem.id);
     setView('detail');
     setToast(payload.type === 'lost' ? '已发布寻物' : '已发布招领');
+  }
+
+  function submitClaim(item) {
+    requireAuth(item.type === 'lost' ? '提供线索' : '认领物品', (user) => {
+      const claim = {
+        id: `claim_${Date.now()}`,
+        userId: user.id,
+        nickName: user.nickName,
+        contact: user.contact,
+        createdAt: new Date().toISOString()
+      };
+      setItems((current) => current.map((entry) => (
+        entry.id === item.id
+          ? { ...entry, claims: [...(entry.claims || []), claim] }
+          : entry
+      )));
+      setToast(item.type === 'lost' ? '线索已提交' : '认领申请已提交');
+    });
+  }
+
+  function handleAuthSubmit(user) {
+    saveUser(user);
+    setCurrentUser(user);
+    const pending = authPrompt?.onAuthed;
+    setAuthPrompt(null);
+    setToast('已登录');
+    if (pending) window.setTimeout(() => pending(user), 0);
+  }
+
+  function logout() {
+    clearUser();
+    setCurrentUser(null);
+    setToast('已退出登录');
   }
 
   function markReturned(id) {
@@ -131,10 +178,12 @@ function App() {
         <MePage
           items={items}
           stats={stats}
+          currentUser={currentUser}
           onPublish={() => openPublish('found')}
           onOpen={openDetail}
           onMarkReturned={markReturned}
           onUndoReturned={undoReturned}
+          onLogout={logout}
         />
       )}
 
@@ -142,6 +191,7 @@ function App() {
         <PublishPage
           initialType={view === 'publish-lost' ? 'lost' : 'found'}
           items={items}
+          currentUser={currentUser}
           onCancel={() => openTab(view === 'publish-lost' ? 'lost' : 'found')}
           onSubmit={publishItem}
         />
@@ -152,12 +202,20 @@ function App() {
           item={selectedItem}
           items={items}
           onBack={() => openTab(selectedItem.status === 'returned' ? 'returned' : selectedItem.type)}
+          onClaim={() => submitClaim(selectedItem)}
           onMarkReturned={() => markReturned(selectedItem.id)}
           onUndoReturned={() => undoReturned(selectedItem.id)}
         />
       )}
 
       {showTabBar && <TabBar view={view} onChange={openTab} />}
+      {authPrompt && (
+        <AuthModal
+          actionLabel={authPrompt.actionLabel}
+          onClose={() => setAuthPrompt(null)}
+          onSubmit={handleAuthSubmit}
+        />
+      )}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
@@ -190,7 +248,6 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
             <h2 className="list-title">近期拾到 · {total} 条</h2>
             <p className="list-subtitle">按最新发布排序</p>
           </div>
-          <button className="sort-button" type="button" onClick={onPublish}>发布</button>
         </div>
       )}
 
@@ -204,6 +261,8 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
         <span className="shield-dot" />
         <span>温馨提示：请勿发布他人隐私信息，招领成功后请及时下架。</span>
       </div>
+
+      <PublishFab tone="found" label="发布招领" onClick={onPublish} />
     </section>
   );
 }
@@ -235,7 +294,6 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
             <h2 className="list-title">正在寻找 · {total} 条</h2>
             <p className="list-subtitle">同学发布的寻物线索</p>
           </div>
-          <button className="sort-button lost" type="button" onClick={onPublish}>发布</button>
         </div>
       )}
 
@@ -244,6 +302,8 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
       ) : (
         <FeedPanel items={list} kind="lost" onOpen={onOpen} />
       )}
+
+      <PublishFab tone="lost" label="发布寻物" onClick={onPublish} />
     </section>
   );
 }
@@ -284,10 +344,14 @@ function ReturnedPage({ items, total, onOpen }) {
   );
 }
 
-function MePage({ items, stats, onPublish, onOpen, onMarkReturned, onUndoReturned }) {
-  const [profile, setProfile] = useState({ nickName: '微信用户', emailPrefix: '' });
+function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogout }) {
+  const [profile, setProfile] = useState({
+    nickName: currentUser?.nickName || '微信用户',
+    emailPrefix: currentUser?.contact ? currentUser.contact.replace('@shanghaitech.edu.cn', '') : ''
+  });
   const shownItems = items.slice(0, 8);
-  const avatarText = (profile.nickName || '微').slice(0, 1);
+  const displayName = currentUser?.nickName || profile.nickName || '微信用户';
+  const avatarText = displayName.slice(0, 1);
 
   return (
     <section className="page me-page">
@@ -299,8 +363,8 @@ function MePage({ items, stats, onPublish, onOpen, onMarkReturned, onUndoReturne
         <div className="profile-main">
           <div className="avatar">{avatarText}</div>
           <div className="identity">
-            <h1 className="name">{profile.nickName || '微信用户'}</h1>
-            <p className="subtitle">用于校内失物招领提醒</p>
+            <h1 className="name">{displayName}</h1>
+            <p className="subtitle">{currentUser ? currentUser.contact : '发布或认领时再登录'}</p>
           </div>
         </div>
         <div className="hero-badge">
@@ -340,6 +404,9 @@ function MePage({ items, stats, onPublish, onOpen, onMarkReturned, onUndoReturne
           <span className="email-domain">@shanghaitech.edu.cn</span>
         </div>
         <button className="button-primary save-profile" type="button">保存资料</button>
+        {currentUser && (
+          <button className="button-secondary logout-button" type="button" onClick={onLogout}>退出登录</button>
+        )}
       </div>
 
       <div className="quick-actions">
@@ -387,21 +454,27 @@ function MePage({ items, stats, onPublish, onOpen, onMarkReturned, onUndoReturne
   );
 }
 
-function PublishPage({ initialType, items, onCancel, onSubmit }) {
+function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
   const [form, setForm] = useState({
     type: initialType,
     title: '',
     description: '',
     category: '',
     tags: [],
+    visualDescription: '',
+    rawPredictions: [],
     locationId: locations[0].id,
     image: '',
-    ownerName: '网页用户'
+    ownerName: currentUser?.nickName || '网页用户'
   });
+  const [classifying, setClassifying] = useState(false);
+  const [modelError, setModelError] = useState('');
+  const [aiProcessStage, setAiProcessStage] = useState('idle');
+  const [aiExtractedText, setAiExtractedText] = useState('');
 
   useEffect(() => {
     const classification = classifyByText(`${form.title} ${form.description}`);
-    if (!form.category || classification.confidence > 0) {
+    if (!form.image && (!form.category || classification.confidence > 0)) {
       setForm((current) => ({
         ...current,
         category: classification.category,
@@ -416,11 +489,46 @@ function PublishPage({ initialType, items, onCancel, onSubmit }) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function chooseImage(file) {
+  function recognitionHint(nextForm = form) {
+    return [nextForm.title, nextForm.description, nextForm.category, ...(nextForm.tags || [])].join(' ').trim();
+  }
+
+  function extractedText(data = {}) {
+    return [data.category, ...(data.tags || [])]
+      .filter((entry) => entry && !['其他', '待确认'].includes(entry))
+      .slice(0, 4)
+      .join('、') || '物品特征待确认';
+  }
+
+  async function chooseImage(file) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => update('image', reader.result);
-    reader.readAsDataURL(file);
+    setClassifying(true);
+    setModelError('');
+    setAiProcessStage('recognizing');
+    setAiExtractedText('');
+    try {
+      const result = await recognizeImageFile(file, recognitionHint());
+      const data = result.data || {};
+      const nextExtractedText = extractedText(data);
+      setForm((current) => ({
+        ...current,
+        image: result.image,
+        title: current.title || data.title || data.category || '',
+        description: current.description || data.description || data.visualDescription || '',
+        category: data.category || current.category || '其他',
+        tags: data.tags || [],
+        visualDescription: data.visualDescription || data.description || '',
+        rawPredictions: data.rawPredictions || []
+      }));
+      setAiExtractedText(nextExtractedText);
+      setAiProcessStage('matching');
+      if (result.warning) setModelError(result.warning);
+    } catch (error) {
+      setModelError(`图片识别失败：${error.message || '请手动填写或重新上传'}`);
+      setAiProcessStage('error');
+    } finally {
+      setClassifying(false);
+    }
   }
 
   function submit(event) {
@@ -430,59 +538,105 @@ function PublishPage({ initialType, items, onCancel, onSubmit }) {
 
   return (
     <section className="page publish-page">
-      <div className="surface-hero publish-hero">
-        <span className="surface-eyebrow">发布线索</span>
-        <h1 className="surface-title">{form.type === 'lost' ? '发布寻物' : '发布招领'}</h1>
-        <p className="surface-subtitle">上传图片、确认地点，系统会提取标签并提示潜在匹配。</p>
+      <div className="publish-hero">
+        <div className="hero-copy">
+          <span className="surface-eyebrow">{form.type === 'lost' ? '寻物登记' : '招领登记'}</span>
+          <h1 className="surface-title">{form.type === 'lost' ? '先把线索留下' : '捡到物品，先贴到公告栏'}</h1>
+          <p className="surface-subtitle">
+            {form.type === 'lost'
+              ? '描述物品和最后出现的位置，方便同学帮你留意。'
+              : '照片可以后补；地点和分类越具体，越容易找到主人。'}
+          </p>
+        </div>
+        <div className="hero-pin" aria-hidden="true">
+          <span className="hero-pin-plus">+</span>
+          <span>发布</span>
+        </div>
       </div>
 
-      <form className="card publish-card" onSubmit={submit}>
+      <form className="publish-card" onSubmit={submit}>
         <div className="segmented" aria-label="发布类型">
           <button type="button" className={form.type === 'found' ? 'active' : ''} onClick={() => update('type', 'found')}>我捡到了</button>
           <button type="button" className={form.type === 'lost' ? 'active' : ''} onClick={() => update('type', 'lost')}>我丢了</button>
         </div>
 
         <label className="image-picker">
-          {form.image ? <img src={form.image} alt="" /> : <span>上传图片，可留空</span>}
+          {form.image ? (
+            <img src={form.image} alt="" />
+          ) : (
+            <span className="image-empty">
+              <span className="image-plus">+</span>
+              <span className="image-title">拍照或从相册选择</span>
+              <span className="image-hint">没有照片也可以先发布</span>
+            </span>
+          )}
           <input type="file" accept="image/*" onChange={(event) => chooseImage(event.target.files?.[0])} />
         </label>
 
-        <input className="field" placeholder="物品标题，可不填" value={form.title} onChange={(event) => update('title', event.target.value)} />
-        <textarea className="field textarea" placeholder="补充描述，可不填" value={form.description} onChange={(event) => update('description', event.target.value)} />
-
-        <div className="row-label">分类，可自动识别或手动选择</div>
-        {form.category && (
-          <div className="ai-result">
-            <span>当前分类：{form.category}</span>
-            <button type="button" onClick={() => update('category', '')}>清除</button>
-          </div>
+        {(classifying || aiProcessStage !== 'idle' || modelError || form.visualDescription) && (
+          <RecognitionPanel
+            classifying={classifying}
+            stage={aiProcessStage}
+            extractedText={aiExtractedText}
+            type={form.type}
+            error={modelError}
+            visualDescription={form.visualDescription}
+          />
         )}
-        <CategoryBar
-          value={form.category}
-          onChange={(entry) => update('category', entry)}
-          hideAll
-          tone="found"
-        />
 
-        <div className="location-panel ok">
-          <div className="location-head">
-            <div className="row-label">地点</div>
+        <div className="form-section">
+          <span className="section-kicker">物品信息</span>
+          <input className="field" placeholder="物品标题，可不填" value={form.title} onChange={(event) => update('title', event.target.value)} />
+          <textarea className="field textarea" placeholder="补充描述，可不填" value={form.description} onChange={(event) => update('description', event.target.value)} />
+        </div>
+
+        <div className="form-section">
+          <div className="section-head publish-section-head">
+            <span className="section-kicker">物品分类</span>
+            <span className="section-note">可自动识别，也可手动改</span>
           </div>
-          <select className="field select-field" value={form.locationId} onChange={(event) => update('locationId', event.target.value)}>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>{location.name}</option>
-            ))}
-          </select>
-          <div className="location-confirm">
-            <div className="location-confirm-row">
-              <span>已选择：</span>
-              <strong>{getLocation(form.locationId).name}</strong>
+          {form.category && (
+            <div className="ai-result">
+              <span>当前分类：{form.category}</span>
+              <button type="button" onClick={() => update('category', '')}>清除</button>
             </div>
-            <div className="location-confirm-row">
-              <span>地点区域：</span>
-              <strong>{getLocation(form.locationId).area}</strong>
+          )}
+          <CategoryBar
+            value={form.category}
+            onChange={(entry) => update('category', entry)}
+            hideAll
+            tone="found"
+          />
+        </div>
+
+        <div className="form-section">
+          <div className="section-head publish-section-head">
+            <span className="section-kicker">地点</span>
+            <span className="section-note">尽量选到楼栋或区域</span>
+          </div>
+          <div className="location-panel ok">
+            <div className="location-head">
+              <div>
+                <strong className="location-title">{getLocation(form.locationId).name}</strong>
+                <span className="location-subtitle">{getLocation(form.locationId).area}</span>
+              </div>
             </div>
-            <p className="location-confirm-note">{getLocation(form.locationId).guide}</p>
+            <select className="field select-field" value={form.locationId} onChange={(event) => update('locationId', event.target.value)}>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>{location.name}</option>
+              ))}
+            </select>
+            <div className="location-confirm">
+              <div className="location-confirm-row">
+                <span>已选择：</span>
+                <strong>{getLocation(form.locationId).name}</strong>
+              </div>
+              <div className="location-confirm-row">
+                <span>地点区域：</span>
+                <strong>{getLocation(form.locationId).area}</strong>
+              </div>
+              <p className="location-confirm-note">{getLocation(form.locationId).guide}</p>
+            </div>
           </div>
         </div>
 
@@ -511,9 +665,142 @@ function PublishPage({ initialType, items, onCancel, onSubmit }) {
   );
 }
 
-function DetailPage({ item, items, onBack, onMarkReturned, onUndoReturned }) {
+function PublishFab({ tone, label, onClick }) {
+  return (
+    <button className={`publish-fab ${tone}`} type="button" aria-label={label} onClick={onClick}>
+      <span className="publish-fab-plus">+</span>
+      <span className="publish-fab-label">发布</span>
+    </button>
+  );
+}
+
+function RecognitionPanel({ classifying, stage, extractedText, type, error, visualDescription }) {
+  const target = type === 'lost' ? '历史招领' : '历史寻物';
+  const steps = stage === 'error'
+    ? [{ key: 'error', text: '图片识别失败，可手动填写或重新上传', status: 'error' }]
+    : [
+      {
+        key: 'recognize',
+        text: '正在识别物品特征',
+        status: stage === 'recognizing' ? 'active' : 'done'
+      },
+      {
+        key: 'extract',
+        text: extractedText ? `已提取：${extractedText}` : '等待提取颜色、类别和细节',
+        status: extractedText ? 'done' : 'pending'
+      },
+      {
+        key: 'match',
+        text: `正在匹配${target}`,
+        status: stage === 'matching' ? 'active' : 'pending'
+      }
+    ];
+
+  return (
+    <div className="recognition-panel">
+      <div className="ai-process-head">
+        <span>识别建议</span>
+        <span>{classifying ? '处理中' : stage === 'error' ? '需手动确认' : '已更新'}</span>
+      </div>
+      {steps.map((step) => (
+        <div key={step.key} className={`ai-process-step ${step.status}`}>
+          <span className="ai-step-dot" />
+          <span className="ai-step-text">{step.text}</span>
+        </div>
+      ))}
+      {visualDescription && <p className="model-desc">{visualDescription}</p>}
+      {error && <p className={stage === 'error' ? 'model-error' : 'model-warning'}>{error}</p>}
+    </div>
+  );
+}
+
+function AuthModal({ actionLabel, onClose, onSubmit }) {
+  const [mode, setMode] = useState('register');
+  const [form, setForm] = useState({
+    nickName: '',
+    contact: '',
+    password: ''
+  });
+  const [error, setError] = useState('');
+
+  function update(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setError('');
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    const contact = form.contact.trim();
+    const nickName = form.nickName.trim();
+    if (!contact) {
+      setError('请填写上科大邮箱或联系方式');
+      return;
+    }
+    if (mode === 'register' && !nickName) {
+      setError('请填写昵称');
+      return;
+    }
+    if (!form.password.trim()) {
+      setError('请填写密码');
+      return;
+    }
+    onSubmit({
+      id: `user_${Date.now()}`,
+      nickName: nickName || contact.split('@')[0] || '网页用户',
+      contact,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  return (
+    <div className="auth-backdrop" role="dialog" aria-modal="true" aria-label="登录或注册">
+      <form className="auth-panel" onSubmit={submit}>
+        <div className="auth-head">
+          <div>
+            <span className="auth-kicker">{actionLabel}</span>
+            <h2>{mode === 'register' ? '先注册一个校内账号' : '登录后继续'}</h2>
+            <p>只在发布、认领或提交线索时需要登录。</p>
+          </div>
+          <button className="auth-close" type="button" aria-label="关闭" onClick={onClose}>×</button>
+        </div>
+
+        <div className="auth-switch" aria-label="登录注册切换">
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册</button>
+          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>登录</button>
+        </div>
+
+        {mode === 'register' && (
+          <label className="auth-field">
+            <span>昵称</span>
+            <input value={form.nickName} placeholder="例如：图书馆同学" onChange={(event) => update('nickName', event.target.value)} />
+          </label>
+        )}
+
+        <label className="auth-field">
+          <span>联系方式</span>
+          <input value={form.contact} placeholder="name@shanghaitech.edu.cn" onChange={(event) => update('contact', event.target.value)} />
+        </label>
+
+        <label className="auth-field">
+          <span>密码</span>
+          <input type="password" value={form.password} placeholder="用于演示登录" onChange={(event) => update('password', event.target.value)} />
+        </label>
+
+        {error && <div className="auth-error">{error}</div>}
+
+        <button className="button-primary auth-submit" type="submit">
+          {mode === 'register' ? '注册并继续' : '登录并继续'}
+        </button>
+        <p className="auth-note">当前是网页演示版，账号信息保存在本机浏览器。</p>
+      </form>
+    </div>
+  );
+}
+
+function DetailPage({ item, items, onBack, onClaim }) {
   const matches = findPotentialMatches(item, items);
   const location = getLocation(item.locationId);
+  const claimCount = item.claims?.length || 0;
 
   return (
     <section className="page detail-page">
@@ -551,12 +838,17 @@ function DetailPage({ item, items, onBack, onMarkReturned, onUndoReturned }) {
       </div>
 
       <div className="action-grid">
-        <button className="button-secondary" type="button">感谢发布人</button>
-        {item.status === 'active'
-          ? <button className="button-primary" type="button" onClick={onMarkReturned}>已回家</button>
-          : <button className="button-secondary" type="button" onClick={onUndoReturned}>撤回已回家</button>}
+        <button className="button-secondary" type="button">联系发布人</button>
+        {item.status === 'active' && (
+          <button className="button-primary" type="button" onClick={onClaim}>
+            {item.type === 'lost' ? '我有线索' : '我要认领'}
+          </button>
+        )}
         <button className="button-danger" type="button">举报</button>
       </div>
+      {claimCount > 0 && (
+        <p className="claim-note">{claimCount} 位同学已提交{item.type === 'lost' ? '线索' : '认领申请'}，请等待发布人确认。</p>
+      )}
 
       {matches.length > 0 && (
         <>

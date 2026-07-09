@@ -19,14 +19,14 @@ export const categoryImages = {
 };
 
 export const categoryKeywords = {
-  证件: ['证件', '身份证', '学生证', '卡片', '护照'],
-  电子产品: ['手机', '电脑', '耳机', '充电器', '平板', '电子', 'airpods'],
-  书本资料: ['书', '教材', '笔记', '资料', '文件', '纸'],
-  衣物: ['衣服', '外套', '帽子', '围巾', '手套'],
-  钥匙: ['钥匙', '门禁'],
-  校园卡: ['校园卡', '一卡通', '饭卡'],
-  雨伞: ['伞', '雨伞'],
-  水杯: ['杯', '水杯', '保温杯']
+  证件: ['证件', '身份证', '学生证', '卡片', '护照', 'id', 'card', 'license', 'passport'],
+  电子产品: ['手机', '电脑', '耳机', '充电器', '平板', '电子', 'airpods', 'phone', 'laptop', 'computer', 'earbuds', 'headphone', 'charger'],
+  书本资料: ['书', '教材', '笔记', '资料', '文件', '纸', 'book', 'notebook', 'paper', 'document'],
+  衣物: ['衣服', '外套', '帽子', '围巾', '手套', 'coat', 'shirt', 'hat', 'cap', 'glove', 'backpack'],
+  钥匙: ['钥匙', '门禁', 'key', 'keys'],
+  校园卡: ['校园卡', '一卡通', '饭卡', 'campus card', 'student card'],
+  雨伞: ['伞', '雨伞', 'umbrella'],
+  水杯: ['杯', '水杯', '保温杯', 'cup', 'bottle', 'mug']
 };
 
 export const locations = [
