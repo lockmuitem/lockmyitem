@@ -4,8 +4,15 @@
   "description": "Unified cloud function for ShanghaiTech lost and found miniprogram",
   "main": "index.js",
   "dependencies": {
+    "lodash.set": "file:vendor/lodash.set",
+    "lodash.unset": "file:vendor/lodash.unset",
     "node-fetch": "^2.7.0",
     "ws": "^8.21.0",
-    "wx-server-sdk": "latest"
+    "wx-server-sdk": "4.0.2"
+  },
+  "overrides": {
+    "axios": "1.18.1",
+    "lodash.set": "file:vendor/lodash.set",
+    "lodash.unset": "file:vendor/lodash.unset"
   }
 }

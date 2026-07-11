@@ -1,0 +1,6 @@
+{
+  "name": "lodash.set",
+  "version": "4.3.3-lockmyitem.1",
+  "main": "index.js",
+  "license": "MIT"
+}
