@@ -14,7 +14,8 @@ const COLLECTIONS = {
   thanks: 'thanks',
   notifications: 'notifications',
   reports: 'reports',
-  locations: 'campus_locations'
+  locations: 'campus_locations',
+  rateLimits: 'classify_rate_limits'
 };
 
 const CATEGORY_KEYWORDS = {
@@ -60,6 +61,8 @@ const CLASSIFY_LIMITS = {
 };
 
 const classifyRateBuckets = new Map();
+let rateLimitCollectionReady = false;
+let rateLimitCollectionDisabled = false;
 
 function optionalNumber(value) {
   const number = Number(value);
@@ -211,6 +214,78 @@ function checkClassifyRateLimit(event = {}, context = {}) {
 
   bucket.count += 1;
   return null;
+}
+
+function isAlreadyExistsError(error) {
+  const text = `${error && (error.errCode || error.code || '')} ${error && (error.errMsg || error.message || '')}`;
+  return /already|exist|EXISTS|DATABASE_COLLECTION_ALREADY_EXISTS/i.test(text);
+}
+
+function isNotFoundError(error) {
+  const text = `${error && (error.errCode || error.code || '')} ${error && (error.errMsg || error.message || '')}`;
+  return /not.?found|not.?exist|NOT_FOUND|DOCUMENT_NOT_EXIST/i.test(text);
+}
+
+async function ensureRateLimitCollection() {
+  if (rateLimitCollectionReady) return true;
+  if (rateLimitCollectionDisabled) return false;
+
+  try {
+    await db.createCollection(COLLECTIONS.rateLimits);
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) {
+      rateLimitCollectionDisabled = true;
+      return false;
+    }
+  }
+
+  rateLimitCollectionReady = true;
+  return true;
+}
+
+async function checkPersistentClassifyRateLimit(event = {}, context = {}) {
+  const ready = await ensureRateLimitCollection();
+  if (!ready) return null;
+
+  const nowMs = Date.now();
+  const key = getClassifyRateKey(event, context);
+  const resetAt = nowMs + CLASSIFY_LIMITS.windowMs;
+
+  return db.runTransaction(async (transaction) => {
+    const doc = transaction.collection(COLLECTIONS.rateLimits).doc(key);
+    let current = null;
+
+    try {
+      const result = await doc.get();
+      current = result && result.data ? result.data : null;
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
+    }
+
+    if (!current || !current.resetAt || current.resetAt <= nowMs) {
+      await doc.set({
+        data: {
+          count: 1,
+          resetAt,
+          updatedAt: now()
+        }
+      });
+      return null;
+    }
+
+    if ((current.count || 0) >= CLASSIFY_LIMITS.maxRequests) {
+      const retryAfter = Math.max(1, Math.ceil((current.resetAt - nowMs) / 1000));
+      return fail(`图片识别请求过于频繁，请 ${retryAfter} 秒后再试`, 'RATE_LIMITED');
+    }
+
+    await doc.update({
+      data: {
+        count: _.inc(1),
+        updatedAt: now()
+      }
+    });
+    return null;
+  });
 }
 
 function sha256(value, encoding = 'hex') {
@@ -423,7 +498,12 @@ async function classifyImage(event, context) {
   const payloadError = validateClassifyImagePayload(event);
   if (payloadError) return payloadError;
 
-  const rateLimitError = checkClassifyRateLimit(event, context);
+  let rateLimitError = null;
+  try {
+    rateLimitError = await checkPersistentClassifyRateLimit(event, context);
+  } catch {
+    rateLimitError = checkClassifyRateLimit(event, context);
+  }
   if (rateLimitError) return rateLimitError;
 
   let imageUrl = normalizeImageUrl(event.imageUrl || '');
