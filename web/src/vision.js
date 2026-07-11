@@ -4,6 +4,7 @@ const TCB_REGION = import.meta.env.VITE_CLOUDBASE_REGION || import.meta.env.VITE
 const TCB_FUNCTION_NAME = import.meta.env.VITE_CLOUDBASE_FUNCTION_NAME || import.meta.env.VITE_TCB_FUNCTION_NAME || 'lostfound';
 const TCB_ENABLED = import.meta.env.VITE_DISABLE_TCB_HUNYUAN !== 'true' && Boolean(TCB_ENV_ID);
 const REMOTE_MODEL_ENDPOINT = import.meta.env.VITE_MODEL_API_URL || import.meta.env.VITE_HUNYUAN_API_URL || '';
+const CLIENT_ID_KEY = 'lockmyitem_web_client_id';
 
 let cloudbaseAppPromise = null;
 
@@ -111,6 +112,20 @@ function withTimeout(promise, ms, message) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 
+function getClientId() {
+  try {
+    const existing = window.localStorage.getItem(CLIENT_ID_KEY);
+    if (existing) return existing;
+    const value = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    window.localStorage.setItem(CLIENT_ID_KEY, value);
+    return value;
+  } catch {
+    return '';
+  }
+}
+
 async function getCloudbaseApp() {
   if (!cloudbaseAppPromise) {
     cloudbaseAppPromise = Promise.resolve().then(async () => {
@@ -121,7 +136,7 @@ async function getCloudbaseApp() {
       };
       if (TCB_ACCESS_KEY) config.accessKey = TCB_ACCESS_KEY;
       const app = cloudbase.init(config);
-      await ensureCloudbaseAuth(app);
+      if (!TCB_ACCESS_KEY) await ensureCloudbaseAuth(app);
       return app;
     });
   }
@@ -161,6 +176,7 @@ async function classifyViaCloudbase(dataUrl, hint) {
         action: 'classifyImage',
         imageBase64: compressed.replace(/^data:[^,]+,/, ''),
         mimeType: 'image/jpeg',
+        clientId: getClientId(),
         hint
       }
     }),

@@ -47,6 +47,20 @@ const HUNYUAN_CONFIG = {
   tencentRegion: process.env.TENCENTCLOUD_REGION || process.env.TENCENT_REGION || ''
 };
 
+function positiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+const CLASSIFY_LIMITS = {
+  maxImageBytes: positiveNumber(process.env.CLASSIFY_MAX_IMAGE_BYTES, 4 * 1024 * 1024),
+  maxImageUrlLength: positiveNumber(process.env.CLASSIFY_MAX_IMAGE_URL_LENGTH, 2048),
+  maxRequests: positiveNumber(process.env.CLASSIFY_RATE_LIMIT_MAX, 20),
+  windowMs: positiveNumber(process.env.CLASSIFY_RATE_LIMIT_WINDOW_MS, 10 * 60 * 1000)
+};
+
+const classifyRateBuckets = new Map();
+
 function optionalNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -127,6 +141,76 @@ function normalizeImageUrl(imageUrl = '') {
     // Keep the original value so callers still get a helpful model/provider error.
   }
   return value;
+}
+
+function estimateBase64Bytes(imageBase64 = '') {
+  const raw = String(imageBase64 || '').replace(/^data:[^,]+,/, '').replace(/\s/g, '');
+  if (!raw) return 0;
+  const padding = raw.endsWith('==') ? 2 : raw.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((raw.length * 3) / 4) - padding);
+}
+
+function validateClassifyImagePayload(event = {}) {
+  if (!event.fileId && !event.imageUrl && !event.imageBase64) {
+    return fail('缺少图片 fileId、imageUrl 或 imageBase64');
+  }
+
+  if (event.imageBase64) {
+    const size = estimateBase64Bytes(event.imageBase64);
+    if (size > CLASSIFY_LIMITS.maxImageBytes) {
+      return fail('图片过大，请压缩到 4MB 以内后再识别', 'IMAGE_TOO_LARGE');
+    }
+  }
+
+  if (event.imageUrl && String(event.imageUrl).length > CLASSIFY_LIMITS.maxImageUrlLength) {
+    return fail('图片链接过长，请上传图片后再识别', 'IMAGE_URL_TOO_LONG');
+  }
+
+  return null;
+}
+
+function pruneClassifyRateBuckets(nowMs) {
+  if (classifyRateBuckets.size < 1000) return;
+  for (const [key, bucket] of classifyRateBuckets.entries()) {
+    if (bucket.resetAt <= nowMs) classifyRateBuckets.delete(key);
+  }
+}
+
+function getClassifyRateKey(event = {}, context = {}) {
+  const serverIdentity = context.OPENID
+    || context.UNIONID
+    || context.UID
+    || event.openid
+    || event.userId
+    || '';
+  const clientIp = context.CLIENTIP || context.clientIP || event.clientIp || event.ip || '';
+  const identity = serverIdentity
+    || clientIp
+    || event.clientId
+    || event.sessionId
+    || 'anonymous';
+  const source = clientIp || context.SOURCE || 'public';
+  return sha256(`${identity}|${source}|${context.APPID || ''}`);
+}
+
+function checkClassifyRateLimit(event = {}, context = {}) {
+  const nowMs = Date.now();
+  pruneClassifyRateBuckets(nowMs);
+  const key = getClassifyRateKey(event, context);
+  const bucket = classifyRateBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= nowMs) {
+    classifyRateBuckets.set(key, { count: 1, resetAt: nowMs + CLASSIFY_LIMITS.windowMs });
+    return null;
+  }
+
+  if (bucket.count >= CLASSIFY_LIMITS.maxRequests) {
+    const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - nowMs) / 1000));
+    return fail(`图片识别请求过于频繁，请 ${retryAfter} 秒后再试`, 'RATE_LIMITED');
+  }
+
+  bucket.count += 1;
+  return null;
 }
 
 function sha256(value, encoding = 'hex') {
@@ -332,13 +416,15 @@ async function listLocations(event) {
   return ok(result.data);
 }
 
-async function classifyImage(event) {
+async function classifyImage(event, context) {
   if (!HUNYUAN_CONFIG.apiKey && !(HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey)) {
     return fail('请先配置 HUNYUAN_API_KEY 或 TENCENT_SECRET_ID/TENCENT_SECRET_KEY', 'MODEL_NOT_CONFIGURED');
   }
-  if (!event.fileId && !event.imageUrl && !event.imageBase64) {
-    return fail('缺少图片 fileId、imageUrl 或 imageBase64');
-  }
+  const payloadError = validateClassifyImagePayload(event);
+  if (payloadError) return payloadError;
+
+  const rateLimitError = checkClassifyRateLimit(event, context);
+  if (rateLimitError) return rateLimitError;
 
   let imageUrl = normalizeImageUrl(event.imageUrl || '');
   if (!imageUrl && event.imageBase64) {
@@ -537,7 +623,7 @@ exports.main = async (event) => {
       case 'createItem':
         return createItem(event, context);
       case 'classifyImage':
-        return classifyImage(event);
+        return classifyImage(event, context);
       case 'listItems':
         return listItems(event);
       case 'getItemDetail':
