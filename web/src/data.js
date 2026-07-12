@@ -3,6 +3,9 @@ import cardImage from './assets/items/card.jpg';
 import earbudsImage from './assets/items/earbuds.jpg';
 import keysImage from './assets/items/keys.jpg';
 import notebookImage from './assets/items/notebook.jpg';
+import { campusMapImage, campusMapImageBoundaries, campusMapLocations, campusMapMeta, campusMapOutline, locationAliases } from './campusMapData.js';
+
+export { campusMapImage, campusMapImageBoundaries, campusMapMeta, campusMapOutline, locationAliases };
 
 export const categories = ['全部', '证件', '电子产品', '书本资料', '衣物', '钥匙', '校园卡', '雨伞', '水杯', '其他'];
 
@@ -29,19 +32,7 @@ export const categoryKeywords = {
   水杯: ['杯', '水杯', '保温杯', 'cup', 'bottle', 'mug']
 };
 
-export const locations = [
-  { id: 'library', name: '图书馆', area: '学习区', x: 54, y: 39, guide: '主图书馆，靠近学生公寓与白玉兰餐厅' },
-  { id: 'sist', name: '信息学院', area: '学院楼', x: 48, y: 45, guide: '信息科学与技术学院楼附近' },
-  { id: 'spst', name: '物质学院', area: '学院楼', x: 42, y: 49, guide: '物质科学与技术学院楼附近' },
-  { id: 'teaching', name: '教学中心', area: '教学区', x: 55, y: 58, guide: '教学中心及教室走廊' },
-  { id: 'service', name: '校园服务中心', area: '公共服务', x: 68, y: 47, guide: '校园服务中心门口与休息区' },
-  { id: 'silk-road-dining', name: '一号食堂', area: '餐饮', x: 74, y: 50, guide: '丝路餐厅，一号食堂主要餐饮点' },
-  { id: 'food-court', name: '尚科美食广场', area: '餐饮', x: 72, y: 58, guide: '二号食堂一楼和二楼' },
-  { id: 'magnolia', name: '白玉兰餐厅', area: '餐饮', x: 64, y: 63, guide: '三号食堂，靠近图书馆' },
-  { id: 'dorms', name: '学生公寓', area: '住宿区', x: 82, y: 36, guide: '学生公寓楼群与生活区道路' },
-  { id: 'athletic', name: '体育馆', area: '运动区', x: 84, y: 65, guide: '体育馆、看台及运动设施周边' },
-  { id: 'south-gate', name: '南门', area: '出入口', x: 52, y: 94, guide: '华夏中路 393 号出入口' }
-];
+export const locations = campusMapLocations;
 
 export const seedItems = [
   {

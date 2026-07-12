@@ -54,6 +54,7 @@ export function createItem(payload) {
     visualDescription: payload.visualDescription || '',
     rawPredictions: payload.rawPredictions || [],
     locationId: payload.locationId,
+    locationDetail: payload.locationDetail?.trim() || '',
     ownerName: payload.ownerName || '网页用户',
     status: 'active',
     createdAt: new Date().toISOString()

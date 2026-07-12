@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { categories, locations } from './data.js';
+import { campusMapImage, campusMapImageBoundaries, campusMapMeta, categories, locations } from './data.js';
 import { clearUser, createItem, loadItems, loadUser, saveItems, saveUser } from './store.js';
 import { classifyByText, findPotentialMatches, formatDate, getLocation } from './utils.js';
 import { recognizeImageFile } from './vision.js';
@@ -455,6 +455,7 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
 }
 
 function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
+  const defaultLocation = locations[0];
   const [form, setForm] = useState({
     type: initialType,
     title: '',
@@ -463,7 +464,8 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
     tags: [],
     visualDescription: '',
     rawPredictions: [],
-    locationId: locations[0].id,
+    locationId: defaultLocation.id,
+    locationDetail: defaultLocation.mapDescription || defaultLocation.guide,
     image: '',
     ownerName: currentUser?.nickName || '网页用户'
   });
@@ -471,6 +473,7 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
   const [modelError, setModelError] = useState('');
   const [aiProcessStage, setAiProcessStage] = useState('idle');
   const [aiExtractedText, setAiExtractedText] = useState('');
+  const [locationQuery, setLocationQuery] = useState('');
 
   useEffect(() => {
     const classification = classifyByText(`${form.title} ${form.description}`);
@@ -491,9 +494,37 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
   }, [form.image, form.title, form.category, form.visualDescription, form.tags]);
 
   const matches = useMemo(() => findPotentialMatches(form, items), [form, items]);
+  const selectedLocation = getLocation(form.locationId);
+  const locationOptions = useMemo(() => {
+    const query = locationQuery.trim().toLowerCase();
+    const selected = getLocation(form.locationId);
+    const filtered = query
+      ? locations.filter((location) => (
+        [location.name, location.area, location.category, location.guide, location.searchableText]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      ))
+      : locations;
+
+    if (!selected || filtered.some((location) => location.id === selected.id)) return filtered;
+    return [selected, ...filtered];
+  }, [form.locationId, locationQuery]);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function selectLocation(locationId) {
+    const location = getLocation(locationId);
+    setForm((current) => ({
+      ...current,
+      locationId,
+      locationDetail: current.locationId === locationId
+        ? current.locationDetail
+        : location.mapDescription || location.guide
+    }));
   }
 
   function recognitionHint(nextForm = form) {
@@ -638,31 +669,44 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
         <div className="form-section">
           <div className="section-head publish-section-head">
             <span className="section-kicker">地点</span>
-            <span className="section-note">尽量选到楼栋或区域</span>
+            <span className="section-note">官方地图建筑 {campusMapMeta.buildingCount} 处，地点 {campusMapMeta.serviceCount} 处</span>
           </div>
           <div className="location-panel ok">
             <div className="location-head">
               <div>
-                <strong className="location-title">{getLocation(form.locationId).name}</strong>
-                <span className="location-subtitle">{getLocation(form.locationId).area}</span>
+                <strong className="location-title">{selectedLocation.name}</strong>
+                <span className="location-subtitle">{selectedLocation.area}</span>
               </div>
             </div>
-            <select className="field select-field" value={form.locationId} onChange={(event) => update('locationId', event.target.value)}>
-              {locations.map((location) => (
+            <input
+              className="field location-search-field"
+              placeholder="搜索建筑、食堂、服务点"
+              value={locationQuery}
+              onChange={(event) => setLocationQuery(event.target.value)}
+            />
+            <select className="field select-field" value={form.locationId} onChange={(event) => selectLocation(event.target.value)}>
+              {locationOptions.map((location) => (
                 <option key={location.id} value={location.id}>{location.name}</option>
               ))}
             </select>
+            <CampusLocationMap selectedId={form.locationId} onSelect={selectLocation} />
             <div className="location-confirm">
               <div className="location-confirm-row">
                 <span>已选择：</span>
-                <strong>{getLocation(form.locationId).name}</strong>
+                <strong>{selectedLocation.name}</strong>
               </div>
               <div className="location-confirm-row">
                 <span>地点区域：</span>
-                <strong>{getLocation(form.locationId).area}</strong>
+                <strong>{selectedLocation.area}</strong>
               </div>
-              <p className="location-confirm-note">{getLocation(form.locationId).guide}</p>
+              <p className="location-confirm-note">{selectedLocation.guide}</p>
             </div>
+            <textarea
+              className="field textarea location-detail-field"
+              placeholder="补充具体方位，如北侧长椅、二楼靠窗、入口右侧"
+              value={form.locationDetail}
+              onChange={(event) => update('locationDetail', event.target.value)}
+            />
           </div>
         </div>
 
@@ -689,6 +733,161 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
       </form>
     </section>
   );
+}
+
+function CampusLocationMap({ selectedId, onSelect }) {
+  const mappedLocations = locations.filter((location) => Number.isFinite(location.x) && Number.isFinite(location.y));
+
+  function handleKeyDown(event, locationId) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onSelect(locationId);
+  }
+
+  function handleMapClick(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const point = {
+      x: ((event.clientX - rect.left) / rect.width) * 100,
+      y: ((event.clientY - rect.top) / rect.height) * 100
+    };
+    const location = findMapLocation(point, mappedLocations);
+    if (location) onSelect(location.id);
+  }
+
+  return (
+    <div className="campus-map-shell">
+      <svg className="campus-map" viewBox={`0 0 ${CAMPUS_MAP_VIEW_WIDTH} ${CAMPUS_MAP_VIEW_HEIGHT}`} role="img" aria-label="上海科技大学校内地点地图" onClick={handleMapClick}>
+        <image className="campus-map-image" href={campusMapImage} x="0" y="0" width={CAMPUS_MAP_VIEW_WIDTH} height={CAMPUS_MAP_VIEW_HEIGHT} preserveAspectRatio="xMidYMid meet" />
+        {campusMapImageBoundaries.map((boundary) => (
+          <polygon
+            key={boundary.id}
+            className={`campus-map-image-boundary ${boundary.family || ''}`}
+            points={pointsAttr(boundary.points)}
+          />
+        ))}
+        {mappedLocations.map((location) => {
+          const isSelected = location.id === selectedId;
+          const hasShape = location.mapShapes?.length > 0;
+          const shapes = hasShape && Array.isArray(location.mapShapes[0])
+            ? location.mapShapes
+            : hasShape
+              ? [location.mapShapes]
+              : [];
+          return (
+            <g
+              key={location.id}
+              className={`campus-map-location ${location.sourceType || 'building'} ${isSelected ? 'selected' : ''}`}
+              data-location-id={location.id}
+              role="button"
+              tabIndex="0"
+              aria-label={location.name}
+              onClick={() => onSelect(location.id)}
+              onKeyDown={(event) => handleKeyDown(event, location.id)}
+            >
+              <title>{location.name}</title>
+              {hasShape ? (
+                shapes.map((shape, index) => (
+                  <polygon key={`${location.id}-${index}`} points={pointsAttr(shape)} />
+                ))
+              ) : (
+                <circle className="campus-map-point" cx={mapX(location.x)} cy={mapY(location.y)} r={mapR(isSelected ? 1.75 : 1.05)} />
+              )}
+              <circle className="campus-map-dot" cx={mapX(location.x)} cy={mapY(location.y)} r={mapR(isSelected ? 1.9 : 0.85)} />
+              {isSelected && (
+                <text className="campus-map-label" x={mapX(location.x)} y={mapY(Math.max(location.y - 2.8, 4))}>
+                  {shortLocationLabel(location.name)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+const CAMPUS_MAP_VIEW_WIDTH = campusMapMeta.imageCalibration?.imageWidth || 100;
+const CAMPUS_MAP_VIEW_HEIGHT = campusMapMeta.imageCalibration?.imageHeight || 100;
+
+function mapX(value) {
+  return (value / 100) * CAMPUS_MAP_VIEW_WIDTH;
+}
+
+function mapY(value) {
+  return (value / 100) * CAMPUS_MAP_VIEW_HEIGHT;
+}
+
+function mapR(value) {
+  return (value / 100) * CAMPUS_MAP_VIEW_HEIGHT;
+}
+
+function findMapLocation(point, candidates) {
+  let contained = null;
+  let containedDistance = Infinity;
+  let nearest = null;
+  let nearestDistance = Infinity;
+
+  candidates.forEach((location) => {
+    const distance = distanceToLocation(point, location);
+    if (distance < nearestDistance) {
+      nearest = location;
+      nearestDistance = distance;
+    }
+
+    const shapes = normalizedMapShapes(location);
+    if (!shapes.length) return;
+    if (!shapes.some((shape) => pointInPolygon(point, shape))) return;
+
+    if (distance < containedDistance) {
+      contained = location;
+      containedDistance = distance;
+    }
+  });
+
+  if (nearestDistance <= 2) return nearest;
+  if (contained) return contained;
+  return nearestDistance <= 4.2 ? nearest : null;
+}
+
+function normalizedMapShapes(location) {
+  if (!location.mapShapes?.length) return [];
+  return Array.isArray(location.mapShapes[0]) ? location.mapShapes : [location.mapShapes];
+}
+
+function distanceToLocation(point, location) {
+  return Math.hypot(point.x - location.x, point.y - location.y);
+}
+
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const currentX = Array.isArray(currentPoint) ? currentPoint[0] : currentPoint.x;
+    const currentY = Array.isArray(currentPoint) ? currentPoint[1] : currentPoint.y;
+    const previousX = Array.isArray(previousPoint) ? previousPoint[0] : previousPoint.x;
+    const previousY = Array.isArray(previousPoint) ? previousPoint[1] : previousPoint.y;
+    const crosses = (currentY > point.y) !== (previousY > point.y);
+    if (!crosses) continue;
+    const intersectX = ((previousX - currentX) * (point.y - currentY)) / (previousY - currentY) + currentX;
+    if (point.x < intersectX) inside = !inside;
+  }
+  return inside;
+}
+
+function pointsAttr(points) {
+  return points
+    .map((point) => {
+      const x = Array.isArray(point) ? point[0] : point.x;
+      const y = Array.isArray(point) ? point[1] : point.y;
+      return `${mapX(x)},${mapY(y)}`;
+    })
+    .join(' ');
+}
+
+function shortLocationLabel(name) {
+  const chars = Array.from(name || '');
+  return chars.length > 8 ? `${chars.slice(0, 8).join('')}…` : chars.join('');
 }
 
 function PublishFab({ tone, label, onClick }) {
@@ -860,6 +1059,7 @@ function DetailPage({ item, items, onBack, onClaim }) {
           <span className="location-badge">校内定位</span>
         </div>
         <div className="location-guide">{location.guide}</div>
+        {item.locationDetail && <p className="location-detail-note">{item.locationDetail}</p>}
         <p className="map-note">地图为辅助定位，具体位置以发布人选择的地点标记为准。</p>
       </div>
 

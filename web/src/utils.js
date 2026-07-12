@@ -1,4 +1,4 @@
-import { categoryKeywords, locations } from './data.js';
+import { categoryKeywords, locationAliases, locations } from './data.js';
 
 const colorWords = ['黑色', '白色', '红色', '蓝色', '绿色', '黄色', '灰色', '银色', '金色', '粉色', '紫色', '透明'];
 const detailWords = ['钥匙扣', '挂件', '贴纸', '姓名', '学号', 'logo', '标志', '卡套', '保护壳', '伞柄', '拉链', '刻字', '划痕'];
@@ -45,7 +45,8 @@ function tokenize(text = '') {
 }
 
 export function getLocation(locationId) {
-  return locations.find((location) => location.id === locationId) || locations[0];
+  const resolvedId = locationAliases[locationId] || locationId;
+  return locations.find((location) => location.id === resolvedId) || locations[0];
 }
 
 export function extractFeatures(item = {}) {
