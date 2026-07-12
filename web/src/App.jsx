@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { campusMapImage, campusMapImageBoundaries, campusMapMeta, categories, locations } from './data.js';
 import { clearUser, createItem, loadItems, loadUser, saveItems, saveUser } from './store.js';
-import { classifyByText, findPotentialMatches, formatDate, getLocation } from './utils.js';
+import { classifyByText, findPotentialMatches, formatDate, getLocation, semanticSearchItems } from './utils.js';
 import { recognizeImageFile } from './vision.js';
 import campusBoardImage from './assets/notice/campus-board.jpg';
 import doneIcon from './assets/tabbar/done.png';
@@ -222,7 +222,9 @@ function App() {
 }
 
 function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish, onOpen }) {
-  const list = filterItems(items, 'found', 'active', activeCategory);
+  const [semanticQuery, setSemanticQuery] = useState('');
+  const baseList = filterItems(items, 'found', 'active', activeCategory);
+  const list = semanticSearchItems(baseList, semanticQuery);
   return (
     <section className="page found-page">
       <div className="board-head">
@@ -240,6 +242,15 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
         <img className="notice-image" src={campusBoardImage} alt="" />
       </button>
 
+      <SemanticSearchBox
+        value={semanticQuery}
+        onChange={setSemanticQuery}
+        tone="found"
+        resultCount={list.length}
+        totalCount={baseList.length}
+        placeholder="语义搜索：黑色雨伞、图书馆耳机、红色挂件..."
+      />
+
       <CategoryBar value={activeCategory} onChange={setActiveCategory} tone="found" />
 
       {list.length > 0 && (
@@ -252,7 +263,7 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
       )}
 
       {list.length === 0 ? (
-        <div className="empty">暂时没有招领信息</div>
+        <div className="empty">{semanticQuery.trim() ? '没有匹配的招领信息' : '暂时没有招领信息'}</div>
       ) : (
         <FeedPanel items={list} kind="found" onOpen={onOpen} />
       )}
@@ -268,7 +279,9 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
 }
 
 function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, onOpen }) {
-  const list = filterItems(items, 'lost', 'active', activeCategory);
+  const [semanticQuery, setSemanticQuery] = useState('');
+  const baseList = filterItems(items, 'lost', 'active', activeCategory);
+  const list = semanticSearchItems(baseList, semanticQuery);
   return (
     <section className="page lost-page">
       <div className="board-head">
@@ -286,6 +299,15 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
         </div>
       </button>
 
+      <SemanticSearchBox
+        value={semanticQuery}
+        onChange={setSemanticQuery}
+        tone="lost"
+        resultCount={list.length}
+        totalCount={baseList.length}
+        placeholder="语义搜索：校园卡、二食堂水杯、蓝色钥匙..."
+      />
+
       <CategoryBar value={activeCategory} onChange={setActiveCategory} tone="lost" />
 
       {list.length > 0 && (
@@ -298,7 +320,7 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
       )}
 
       {list.length === 0 ? (
-        <div className="empty">暂时没有寻物信息</div>
+        <div className="empty">{semanticQuery.trim() ? '没有匹配的寻物信息' : '暂时没有寻物信息'}</div>
       ) : (
         <FeedPanel items={list} kind="lost" onOpen={onOpen} />
       )}
@@ -466,6 +488,7 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
     rawPredictions: [],
     locationId: defaultLocation.id,
     locationDetail: defaultLocation.mapDescription || defaultLocation.guide,
+    locationImages: [],
     image: '',
     ownerName: currentUser?.nickName || '网页用户'
   });
@@ -588,6 +611,23 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
     }
   }
 
+  async function addLocationImages(fileList) {
+    const files = Array.from(fileList || []).filter((file) => file.type?.startsWith('image/'));
+    if (!files.length) return;
+    const images = await Promise.all(files.slice(0, 6).map(readLocationImageFile));
+    setForm((current) => ({
+      ...current,
+      locationImages: [...(current.locationImages || []), ...images].slice(0, 6)
+    }));
+  }
+
+  function removeLocationImage(index) {
+    setForm((current) => ({
+      ...current,
+      locationImages: (current.locationImages || []).filter((_, imageIndex) => imageIndex !== index)
+    }));
+  }
+
   function submit(event) {
     event.preventDefault();
     onSubmit(form);
@@ -707,6 +747,31 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
               value={form.locationDetail}
               onChange={(event) => update('locationDetail', event.target.value)}
             />
+            <div className="location-image-section">
+              {(form.locationImages || []).length > 0 && (
+                <div className="location-image-grid">
+                  {form.locationImages.map((image, index) => (
+                    <span className="location-image-thumb" key={`${image}-${index}`}>
+                      <img src={image} alt="" />
+                      <button type="button" aria-label="删除方位图片" onClick={() => removeLocationImage(index)}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <label className="location-image-add">
+                <span className="location-image-add-mark">+</span>
+                <span>添加方位图片</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => {
+                    addLocationImages(event.target.files);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -733,6 +798,29 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
       </form>
     </section>
   );
+}
+
+function readLocationImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = reject;
+      image.onload = () => {
+        const maxSize = 960;
+        const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function CampusLocationMap({ selectedId, onSelect }) {
@@ -823,7 +911,7 @@ function mapR(value) {
 
 function findMapLocation(point, candidates) {
   let contained = null;
-  let containedDistance = Infinity;
+  let containedArea = Infinity;
   let nearest = null;
   let nearestDistance = Infinity;
 
@@ -836,16 +924,18 @@ function findMapLocation(point, candidates) {
 
     const shapes = normalizedMapShapes(location);
     if (!shapes.length) return;
-    if (!shapes.some((shape) => pointInPolygon(point, shape))) return;
+    const containingShapes = shapes.filter((shape) => pointInPolygon(point, shape));
+    if (!containingShapes.length) return;
+    const area = Math.min(...containingShapes.map(polygonArea));
 
-    if (distance < containedDistance) {
+    if (area < containedArea || (area === containedArea && distance < distanceToLocation(point, contained))) {
       contained = location;
-      containedDistance = distance;
+      containedArea = area;
     }
   });
 
-  if (nearestDistance <= 2) return nearest;
   if (contained) return contained;
+  if (nearestDistance <= 2) return nearest;
   return nearestDistance <= 4.2 ? nearest : null;
 }
 
@@ -873,6 +963,21 @@ function pointInPolygon(point, polygon) {
     if (point.x < intersectX) inside = !inside;
   }
   return inside;
+}
+
+function polygonArea(polygon) {
+  if (!polygon?.length) return Infinity;
+  let area = 0;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const currentX = Array.isArray(currentPoint) ? currentPoint[0] : currentPoint.x;
+    const currentY = Array.isArray(currentPoint) ? currentPoint[1] : currentPoint.y;
+    const previousX = Array.isArray(previousPoint) ? previousPoint[0] : previousPoint.x;
+    const previousY = Array.isArray(previousPoint) ? previousPoint[1] : previousPoint.y;
+    area += (previousX * currentY) - (currentX * previousY);
+  }
+  return Math.abs(area) / 2;
 }
 
 function pointsAttr(points) {
@@ -1060,6 +1165,13 @@ function DetailPage({ item, items, onBack, onClaim }) {
         </div>
         <div className="location-guide">{location.guide}</div>
         {item.locationDetail && <p className="location-detail-note">{item.locationDetail}</p>}
+        {(item.locationImages || []).length > 0 && (
+          <div className="location-photo-strip">
+            {item.locationImages.map((image, index) => (
+              <img key={`${image}-${index}`} src={image} alt="" />
+            ))}
+          </div>
+        )}
         <p className="map-note">地图为辅助定位，具体位置以发布人选择的地点标记为准。</p>
       </div>
 
@@ -1117,6 +1229,30 @@ function CategoryBar({ value, onChange, hideAll = false, tone = 'found' }) {
           {entry}
         </button>
       ))}
+    </div>
+  );
+}
+
+function SemanticSearchBox({ value, onChange, tone = 'found', resultCount, totalCount, placeholder }) {
+  const active = value.trim().length > 0;
+  return (
+    <div className={`semantic-search ${tone}`}>
+      <div className="semantic-search-row">
+        <span className="semantic-search-icon" aria-hidden="true">⌕</span>
+        <input
+          value={value}
+          placeholder={placeholder}
+          aria-label="语义搜索"
+          onChange={(event) => onChange(event.target.value)}
+        />
+        {active && (
+          <button type="button" aria-label="清空语义搜索" onClick={() => onChange('')}>×</button>
+        )}
+      </div>
+      <div className="semantic-search-meta">
+        <span>匹配标题、描述、AI 标签、地点和方位信息</span>
+        {active && <strong>命中 {resultCount}/{totalCount} 条</strong>}
+      </div>
     </div>
   );
 }

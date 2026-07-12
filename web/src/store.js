@@ -55,6 +55,7 @@ export function createItem(payload) {
     rawPredictions: payload.rawPredictions || [],
     locationId: payload.locationId,
     locationDetail: payload.locationDetail?.trim() || '',
+    locationImages: Array.isArray(payload.locationImages) ? payload.locationImages.filter(Boolean).slice(0, 6) : [],
     ownerName: payload.ownerName || '网页用户',
     status: 'active',
     createdAt: new Date().toISOString()

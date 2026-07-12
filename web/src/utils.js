@@ -49,10 +49,27 @@ export function getLocation(locationId) {
   return locations.find((location) => location.id === resolvedId) || locations[0];
 }
 
-export function extractFeatures(item = {}) {
-  const source = [item.title, item.description, item.category, ...(item.tags || []), getLocation(item.locationId)?.name]
+function searchableText(item = {}) {
+  const location = getLocation(item.locationId);
+  return [
+    item.title,
+    item.description,
+    item.category,
+    ...(item.tags || []),
+    item.visualDescription,
+    item.locationDetail,
+    location?.name,
+    location?.area,
+    location?.guide,
+    location?.searchableText
+  ]
+    .filter(Boolean)
     .join(' ')
     .toLowerCase();
+}
+
+export function extractFeatures(item = {}) {
+  const source = searchableText(item);
   const classification = item.category ? { category: item.category, tags: item.tags || [] } : classifyByText(source);
   const colors = hits(source, colorWords);
   const details = hits(source, detailWords);
@@ -66,6 +83,60 @@ export function extractFeatures(item = {}) {
     shapes,
     signature: unique([classification.category, ...classification.tags, ...colors, ...details, ...shapes, ...tokens])
   };
+}
+
+export function semanticSearchItems(items = [], query = '') {
+  const keyword = query.trim();
+  if (!keyword) return items;
+
+  const queryText = keyword.toLowerCase();
+  const isLocationQuery = locations.some((location) => (
+    [location.name, location.area, location.guide, location.searchableText]
+      .filter(Boolean)
+      .some((entry) => String(entry).toLowerCase().includes(queryText))
+  ));
+  const queryFeatures = extractFeatures({ title: keyword, description: keyword });
+  const queryTokens = tokenize(keyword);
+  const canUseSemanticFeatures = !isLocationQuery || queryFeatures.colors.length || queryFeatures.details.length || queryFeatures.shapes.length;
+
+  return items
+    .map((item) => {
+      const targetText = searchableText(item);
+      const targetFeatures = extractFeatures(item);
+      let score = 0;
+      let directHit = false;
+
+      if (targetText.includes(queryText)) {
+        score += 48;
+        directHit = true;
+      }
+
+      const tokenHits = queryTokens.filter((token) => targetText.includes(token));
+      if (tokenHits.length) {
+        score += Math.min(tokenHits.length * 14, 42);
+        directHit = true;
+      }
+
+      if (!isLocationQuery && queryFeatures.category && queryFeatures.category !== '其他' && queryFeatures.category === targetFeatures.category) {
+        score += 22;
+        directHit = true;
+      }
+
+      const colorScore = Math.min(sharedCount(queryFeatures.colors, targetFeatures.colors) * 18, 28);
+      const detailScore = Math.min(sharedCount(queryFeatures.details, targetFeatures.details) * 20, 32);
+      const shapeScore = Math.min(sharedCount(queryFeatures.shapes, targetFeatures.shapes) * 14, 22);
+      if (colorScore || detailScore || shapeScore) directHit = true;
+      score += colorScore + detailScore + shapeScore;
+
+      if (canUseSemanticFeatures) {
+        score += Math.min(sharedCount(queryFeatures.signature, targetFeatures.signature) * 5, 24);
+      }
+
+      return { item, score: directHit ? score : 0 };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || new Date(b.item.createdAt) - new Date(a.item.createdAt))
+    .map((entry) => entry.item);
 }
 
 function sharedCount(a = [], b = []) {
