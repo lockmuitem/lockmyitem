@@ -45,9 +45,16 @@ function isCloudPermissionError(error) {
   return /-601034|没有权限|请先开通云开发|云托管|cloud\.callFunction:fail/i.test(getErrorMessage(error, ''));
 }
 
+function isCloudFunctionInvocationError(error) {
+  return /FUNCTION_INVOCATION_FAILED|Function code exception caught|函数执行失败/i.test(getErrorMessage(error, ''));
+}
+
 function getRecognitionErrorText(error, fallback = '图片识别失败') {
   if (isCloudPermissionError(error)) {
     return '图片识别失败：当前 AppID 没有云开发调用权限，请在微信开发者工具开通云开发并选择正确环境';
+  }
+  if (isCloudFunctionInvocationError(error)) {
+    return '图片识别失败：云函数执行异常，请重新部署 lostfound（云端安装依赖）并查看云函数日志';
   }
   return `图片识别失败：${getErrorMessage(error, fallback)}`;
 }

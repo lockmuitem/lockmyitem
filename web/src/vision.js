@@ -94,10 +94,21 @@ function readableError(error, fallback = '调用失败') {
     error?.error?.message,
     error?.error?.code
   ].filter(Boolean);
-  if (parts.length) return parts.join(' ');
+  if (parts.length) {
+    const text = parts.join(' ');
+    if (/FUNCTION_INVOCATION_FAILED|Function code exception caught|函数执行失败/i.test(text)) {
+      return '云函数执行异常，请重新部署 lostfound（云端安装依赖）并查看云函数日志';
+    }
+    return text;
+  }
   try {
     const json = JSON.stringify(error);
-    if (json && json !== '{}') return json;
+    if (json && json !== '{}') {
+      if (/FUNCTION_INVOCATION_FAILED|Function code exception caught|函数执行失败/i.test(json)) {
+        return '云函数执行异常，请重新部署 lostfound（云端安装依赖）并查看云函数日志';
+      }
+      return json;
+    }
   } catch {
     // Ignore serialization failures and use the fallback below.
   }

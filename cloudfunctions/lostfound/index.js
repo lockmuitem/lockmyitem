@@ -1,5 +1,4 @@
 const cloud = require('wx-server-sdk');
-const fetch = require('node-fetch');
 const crypto = require('crypto');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -30,6 +29,8 @@ const CATEGORY_KEYWORDS = {
 };
 
 const BAD_WORDS = ['辱骂', '广告', '诈骗', '加群'];
+
+let cachedFetch = null;
 
 const HUNYUAN_CONFIG = {
   apiKey: process.env.HUNYUAN_API_KEY
@@ -75,6 +76,21 @@ function ok(data = {}) {
 
 function fail(message, code = 'BAD_REQUEST') {
   return { ok: false, code, message };
+}
+
+function getFetch() {
+  if (cachedFetch) return cachedFetch;
+  try {
+    const nodeFetch = require('node-fetch');
+    cachedFetch = nodeFetch.default || nodeFetch;
+    return cachedFetch;
+  } catch (error) {
+    if (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function') {
+      cachedFetch = globalThis.fetch.bind(globalThis);
+      return cachedFetch;
+    }
+    throw new Error(`云函数缺少 node-fetch 依赖，请使用“上传并部署：云端安装依赖”重新部署 lostfound：${error.message}`);
+  }
 }
 
 function now() {
@@ -140,7 +156,8 @@ function normalizeImageUrl(imageUrl = '') {
     if (embeddedUrl && /^https?:\/\//i.test(embeddedUrl)) {
       return embeddedUrl;
     }
-  } catch {
+  } catch (error) {
+    void error;
     // Keep the original value so callers still get a helpful model/provider error.
   }
   return value;
@@ -362,10 +379,11 @@ function buildVisionPrompt(hint = '') {
 }
 
 async function callOpenAICompatibleHunyuanVision(payload) {
+  const fetchClient = getFetch();
   const endpoint = `${HUNYUAN_CONFIG.baseUrl}/chat/completions`;
   const prompt = buildVisionPrompt(payload.hint);
 
-  const response = await fetch(endpoint, {
+  const response = await fetchClient(endpoint, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${HUNYUAN_CONFIG.apiKey}`,
@@ -397,6 +415,7 @@ async function callOpenAICompatibleHunyuanVision(payload) {
 }
 
 async function callTencentCloudHunyuanVision(payload) {
+  const fetchClient = getFetch();
   const endpointHost = new URL(HUNYUAN_CONFIG.tencentEndpoint).host;
   const requestBody = {
     Model: HUNYUAN_CONFIG.model,
@@ -424,7 +443,7 @@ async function callTencentCloudHunyuanVision(payload) {
   };
   if (HUNYUAN_CONFIG.tencentRegion) headers['x-tc-region'] = HUNYUAN_CONFIG.tencentRegion;
 
-  const response = await fetch(HUNYUAN_CONFIG.tencentEndpoint, {
+  const response = await fetchClient(HUNYUAN_CONFIG.tencentEndpoint, {
     method: 'POST',
     headers,
     body: payloadText,
@@ -524,9 +543,14 @@ async function classifyImage(event, context) {
     imageUrl = normalizeImageBase64(event.imageBase64, event.mimeType || event.contentType || 'image/jpeg');
   }
   if (!imageUrl && event.fileId) {
-    const tempResult = await cloud.getTempFileURL({ fileList: [event.fileId] });
+    let tempResult;
+    try {
+      tempResult = await cloud.getTempFileURL({ fileList: [event.fileId] });
+    } catch (error) {
+      return fail(error.message || '无法获取图片临时链接', 'IMAGE_URL_FAILED');
+    }
     const file = tempResult.fileList && tempResult.fileList[0];
-    if (!file || !file.tempFileURL) return fail('无法获取图片临时链接');
+    if (!file || !file.tempFileURL) return fail('无法获取图片临时链接', 'IMAGE_URL_FAILED');
     imageUrl = file.tempFileURL;
   }
 
@@ -707,32 +731,32 @@ async function reportContent(event, context) {
   return ok({ _id: created._id, ...data });
 }
 
-exports.main = async (event) => {
-  const context = cloud.getWXContext();
+exports.main = async (event = {}) => {
   try {
+    const context = cloud.getWXContext();
     switch (event.action) {
       case 'login':
-        return login(event, context);
+        return await login(event, context);
       case 'createItem':
-        return createItem(event, context);
+        return await createItem(event, context);
       case 'classifyImage':
-        return classifyImage(event, context);
+        return await classifyImage(event, context);
       case 'listItems':
-        return listItems(event);
+        return await listItems(event);
       case 'getItemDetail':
-        return getItemDetail(event);
+        return await getItemDetail(event);
       case 'listLocations':
-        return listLocations(event);
+        return await listLocations(event);
       case 'createComment':
-        return createComment(event, context);
+        return await createComment(event, context);
       case 'sendThanks':
-        return sendThanks(event, context);
+        return await sendThanks(event, context);
       case 'markReturned':
-        return updateReturnStatus(event, context, true);
+        return await updateReturnStatus(event, context, true);
       case 'undoReturned':
-        return updateReturnStatus(event, context, false);
+        return await updateReturnStatus(event, context, false);
       case 'reportContent':
-        return reportContent(event, context);
+        return await reportContent(event, context);
       default:
         return fail(`未知 action: ${event.action}`);
     }
