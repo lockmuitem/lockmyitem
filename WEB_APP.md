@@ -127,4 +127,4 @@ npm run build
 - 详情页、标记已找回
 - 我的发布与浏览器安装入口
 
-当前数据保存在浏览器 `localStorage`。正式上线时可以继续接现有云函数或自建 API，把 `web/src/store.js` 替换为真实接口调用。
+网页端数据优先通过 CloudBase 调用 `lostfound` 云函数的 `listItems`、`createItem`、`getItemDetail`、`createComment`、`markReturned` 和 `undoReturned` action；浏览器 `localStorage` 仅作为加载失败或离线时的缓存兜底。

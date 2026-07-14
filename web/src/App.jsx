@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { campusMapImage, campusMapImageBoundaries, campusMapMeta, categories, locations } from './data.js';
-import { clearUser, createItem, loadItems, loadUser, saveItems, saveUser } from './store.js';
+import {
+  clearUser,
+  cloudErrorMessage,
+  createCloudComment,
+  createCloudItem,
+  createItem,
+  loadCloudItemDetail,
+  loadCloudItems,
+  loadItems,
+  loadUser,
+  saveItems,
+  saveUser,
+  setCloudReturnStatus
+} from './store.js';
 import { classifyByText, findPotentialMatches, formatDate, getLocation, semanticSearchItems } from './utils.js';
 import { recognizeImageFile } from './vision.js';
 import campusBoardImage from './assets/notice/campus-board.jpg';
@@ -26,12 +39,54 @@ function App() {
   const [view, setView] = useState('found');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [selectedId, setSelectedId] = useState(null);
+  const [commentsByItem, setCommentsByItem] = useState({});
+  const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState('');
   const [authPrompt, setAuthPrompt] = useState(null);
 
   useEffect(() => {
     saveItems(items);
   }, [items]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSyncing(true);
+    loadCloudItems()
+      .then((cloudItems) => {
+        if (cancelled) return;
+        setItems(cloudItems);
+        setToast('已同步云端公告栏');
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setToast(`云端同步失败，正在使用本机缓存：${cloudErrorMessage(error)}`);
+      })
+      .finally(() => {
+        if (!cancelled) setSyncing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (view !== 'detail' || !selectedId) return undefined;
+    let cancelled = false;
+    loadCloudItemDetail(selectedId)
+      .then(({ item, comments }) => {
+        if (cancelled) return;
+        if (item) {
+          setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, ...item } : entry)));
+        }
+        setCommentsByItem((current) => ({ ...current, [selectedId]: comments }));
+      })
+      .catch((error) => {
+        if (!cancelled) setToast(`评论同步失败：${cloudErrorMessage(error)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, selectedId]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -62,12 +117,12 @@ function App() {
     setView(key);
   }
 
-  function requireAuth(actionLabel, onAuthed) {
+  function requireAuth(actionLabel, onAuthed, onCancel) {
     if (currentUser) {
       onAuthed(currentUser);
       return;
     }
-    setAuthPrompt({ actionLabel, onAuthed });
+    setAuthPrompt({ actionLabel, onAuthed, onCancel });
   }
 
   function openPublish(type = 'found') {
@@ -76,22 +131,35 @@ function App() {
     });
   }
 
-  function publishItem(payload) {
-    const nextItem = createItem({
+  async function publishItem(payload) {
+    const nextPayload = {
       ...payload,
       ownerName: currentUser?.nickName || payload.ownerName,
       title: payload.title || (payload.type === 'lost' ? '未命名寻物' : '未命名招领'),
       description: payload.description || '暂无补充描述'
-    });
+    };
+    let nextItem;
+    let cloudSynced = true;
+    try {
+      nextItem = await createCloudItem(nextPayload, currentUser);
+    } catch (error) {
+      cloudSynced = false;
+      nextItem = createItem(nextPayload);
+      console.warn('Cloud publish failed; saved locally.', error);
+    }
     setItems((current) => [nextItem, ...current]);
     setSelectedId(null);
     setActiveCategory('全部');
     setView(payload.type === 'lost' ? 'lost' : 'found');
-    setToast(payload.type === 'lost' ? '已发布寻物' : '已发布招领');
+    if (cloudSynced) {
+      setToast(payload.type === 'lost' ? '已同步发布寻物' : '已同步发布招领');
+    } else {
+      setToast('云端发布失败，已暂存本机');
+    }
   }
 
   function submitClaim(item) {
-    requireAuth(item.type === 'lost' ? '提供线索' : '认领物品', (user) => {
+    requireAuth(item.type === 'lost' ? '提供线索' : '认领物品', async (user) => {
       const claim = {
         id: `claim_${Date.now()}`,
         userId: user.id,
@@ -99,12 +167,24 @@ function App() {
         contact: user.contact,
         createdAt: new Date().toISOString()
       };
-      setItems((current) => current.map((entry) => (
-        entry.id === item.id
-          ? { ...entry, claims: [...(entry.claims || []), claim] }
-          : entry
-      )));
-      setToast(item.type === 'lost' ? '线索已提交' : '认领申请已提交');
+      const content = item.type === 'lost'
+        ? `${user.nickName} 提供线索：${user.contact}`
+        : `${user.nickName} 申请认领：${user.contact}`;
+      try {
+        const comment = await createCloudComment(item.id, content, user);
+        setCommentsByItem((current) => ({
+          ...current,
+          [item.id]: [...(current[item.id] || []), comment]
+        }));
+        setToast(item.type === 'lost' ? '线索已同步提交' : '认领申请已同步提交');
+      } catch (error) {
+        setItems((current) => current.map((entry) => (
+          entry.id === item.id
+            ? { ...entry, claims: [...(entry.claims || []), claim] }
+            : entry
+        )));
+        setToast(`云端提交失败，已暂存本机：${cloudErrorMessage(error)}`);
+      }
     });
   }
 
@@ -123,22 +203,51 @@ function App() {
     setToast('已退出登录');
   }
 
-  function markReturned(id) {
-    setItems((current) => current.map((item) => (
-      item.id === id
-        ? { ...item, status: 'returned', returnedAt: new Date().toISOString() }
-        : item
-    )));
-    setToast('已回家');
+  async function markReturned(id) {
+    try {
+      await setCloudReturnStatus(id, true);
+      setItems((current) => current.map((item) => (
+        item.id === id
+          ? { ...item, status: 'returned', returnedAt: new Date().toISOString() }
+          : item
+      )));
+      setToast('已同步为找回');
+    } catch (error) {
+      setToast(`云端状态更新失败：${cloudErrorMessage(error)}`);
+    }
   }
 
-  function undoReturned(id) {
-    setItems((current) => current.map((item) => (
-      item.id === id
-        ? { ...item, status: 'active', returnedAt: null }
-        : item
-    )));
-    setToast('已撤回');
+  async function undoReturned(id) {
+    try {
+      await setCloudReturnStatus(id, false);
+      setItems((current) => current.map((item) => (
+        item.id === id
+          ? { ...item, status: 'active', returnedAt: null }
+          : item
+      )));
+      setToast('已同步撤回');
+    } catch (error) {
+      setToast(`云端状态更新失败：${cloudErrorMessage(error)}`);
+    }
+  }
+
+  function submitComment(item, content) {
+    return new Promise((resolve) => {
+      requireAuth('发表评论', async (user) => {
+        try {
+          const comment = await createCloudComment(item.id, content, user);
+          setCommentsByItem((current) => ({
+            ...current,
+            [item.id]: [...(current[item.id] || []), comment]
+          }));
+          setToast('评论已同步');
+          resolve(true);
+        } catch (error) {
+          setToast(`评论同步失败：${cloudErrorMessage(error)}`);
+          resolve(false);
+        }
+      }, () => resolve(false));
+    });
   }
 
   const showTabBar = ['found', 'lost', 'returned', 'me'].includes(view);
@@ -202,18 +311,24 @@ function App() {
         <DetailPage
           item={selectedItem}
           items={items}
+          comments={commentsByItem[selectedItem.id] || []}
           onBack={() => openTab(selectedItem.status === 'returned' ? 'returned' : selectedItem.type)}
           onClaim={() => submitClaim(selectedItem)}
           onMarkReturned={() => markReturned(selectedItem.id)}
           onUndoReturned={() => undoReturned(selectedItem.id)}
+          onComment={(content) => submitComment(selectedItem, content)}
         />
       )}
 
+      {syncing && <div className="sync-chip" role="status">同步中</div>}
       {showTabBar && <TabBar view={view} onChange={openTab} />}
       {authPrompt && (
         <AuthModal
           actionLabel={authPrompt.actionLabel}
-          onClose={() => setAuthPrompt(null)}
+          onClose={() => {
+            authPrompt.onCancel?.();
+            setAuthPrompt(null);
+          }}
           onSubmit={handleAuthSubmit}
         />
       )}
@@ -498,6 +613,7 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
   const [aiProcessStage, setAiProcessStage] = useState('idle');
   const [aiExtractedText, setAiExtractedText] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const classification = classifyByText(`${form.title} ${form.description}`);
@@ -629,9 +745,15 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
     }));
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    onSubmit(form);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(form);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -793,8 +915,8 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
         )}
 
         <div className="publish-actions">
-          <button className="button-secondary" type="button" onClick={onCancel}>取消</button>
-          <button className="button-primary submit" type="submit">发布</button>
+          <button className="button-secondary" type="button" onClick={onCancel} disabled={submitting}>取消</button>
+          <button className="button-primary submit" type="submit" disabled={submitting}>{submitting ? '发布中' : '发布'}</button>
         </div>
       </form>
     </section>
@@ -1122,16 +1244,28 @@ function AuthModal({ actionLabel, onClose, onSubmit }) {
         <button className="button-primary auth-submit" type="submit">
           {mode === 'register' ? '注册并继续' : '登录并继续'}
         </button>
-        <p className="auth-note">当前是网页演示版，账号信息保存在本机浏览器。</p>
+        <p className="auth-note">登录状态保存在本机浏览器，发布和评论会同步到云端公告栏。</p>
       </form>
     </div>
   );
 }
 
-function DetailPage({ item, items, onBack, onClaim }) {
+function DetailPage({ item, items, comments = [], onBack, onClaim, onComment }) {
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
   const matches = findPotentialMatches(item, items);
   const location = getLocation(item.locationId);
   const claimCount = item.claims?.length || 0;
+
+  async function submitComment(event) {
+    event.preventDefault();
+    const content = commentText.trim();
+    if (!content || submittingComment) return;
+    setSubmittingComment(true);
+    const submitted = await onComment(content);
+    if (submitted) setCommentText('');
+    setSubmittingComment(false);
+  }
 
   return (
     <section className="page detail-page">
@@ -1207,11 +1341,29 @@ function DetailPage({ item, items, onBack, onClaim }) {
       )}
 
       <h2 className="section-title">评论</h2>
-      <div className="empty small">还没有评论</div>
-      <div className="comment-box">
-        <input placeholder="写下线索或领取信息" />
-        <button type="button">发送</button>
-      </div>
+      {comments.length === 0 ? (
+        <div className="empty small">还没有评论</div>
+      ) : (
+        <div className="comment-list">
+          {comments.map((comment) => (
+            <div className="comment-card" key={comment.id}>
+              <div className="comment-head">
+                <strong>{comment.authorName}</strong>
+                <span>{formatDate(comment.createdAt)}</span>
+              </div>
+              <p>{comment.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <form className="comment-box" onSubmit={submitComment}>
+        <input
+          value={commentText}
+          placeholder="写下线索或领取信息"
+          onChange={(event) => setCommentText(event.target.value)}
+        />
+        <button type="submit" disabled={submittingComment}>{submittingComment ? '发送中' : '发送'}</button>
+      </form>
     </section>
   );
 }
