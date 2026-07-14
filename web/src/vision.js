@@ -159,19 +159,15 @@ async function getCloudbaseApp() {
   if (!cloudbaseAppPromise) {
     cloudbaseAppPromise = Promise.resolve().then(async () => {
       const { default: cloudbase } = await import('@cloudbase/js-sdk');
-      const config = {
-        env: TCB_ENV_ID,
-        region: TCB_REGION
-      };
-      if (TCB_ACCESS_KEY) config.accessKey = TCB_ACCESS_KEY;
-      const app = cloudbase.init(config);
       try {
+        const app = cloudbase.init({ env: TCB_ENV_ID, region: TCB_REGION });
         await ensureCloudbaseAuth(app);
+        return app;
       } catch (error) {
         if (!TCB_ACCESS_KEY) throw error;
-        console.warn('CloudBase anonymous auth unavailable; continuing with publishable key only.', error);
+        console.warn('CloudBase anonymous auth unavailable; continuing with publishable key fallback.', error);
       }
-      return app;
+      return cloudbase.init({ env: TCB_ENV_ID, region: TCB_REGION, accessKey: TCB_ACCESS_KEY });
     });
   }
   return cloudbaseAppPromise;
