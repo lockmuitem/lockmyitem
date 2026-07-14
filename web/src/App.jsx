@@ -84,8 +84,9 @@ function App() {
       description: payload.description || '暂无补充描述'
     });
     setItems((current) => [nextItem, ...current]);
-    setSelectedId(nextItem.id);
-    setView('detail');
+    setSelectedId(null);
+    setActiveCategory('全部');
+    setView(payload.type === 'lost' ? 'lost' : 'found');
     setToast(payload.type === 'lost' ? '已发布寻物' : '已发布招领');
   }
 
