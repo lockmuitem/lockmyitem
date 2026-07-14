@@ -41,6 +41,23 @@ function parseMaybeJson(value) {
   }
 }
 
+function unwrapCloudFunctionResponse(response) {
+  const candidates = [
+    response?.result,
+    response?.data,
+    response
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseMaybeJson(candidate);
+    if (parsed && typeof parsed === 'object' && ('ok' in parsed || 'data' in parsed || 'code' in parsed)) {
+      return parsed;
+    }
+  }
+
+  return {};
+}
+
 function withTimeout(promise, ms, message) {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -134,7 +151,7 @@ async function callLostfound(action, data = {}, timeoutMs = 15000) {
     timeoutMs,
     `调用 ${action} 超时`
   );
-  const body = parseMaybeJson(response?.result) || {};
+  const body = unwrapCloudFunctionResponse(response);
   if (body.ok === false) {
     throw new Error(body.message || body.error || body.code || `${action} 返回失败`);
   }

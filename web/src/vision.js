@@ -84,6 +84,23 @@ function parseMaybeJson(value) {
   }
 }
 
+function unwrapCloudFunctionResponse(response) {
+  const candidates = [
+    response?.result,
+    response?.data,
+    response
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseMaybeJson(candidate);
+    if (parsed && typeof parsed === 'object' && ('ok' in parsed || 'data' in parsed || 'code' in parsed)) {
+      return parsed;
+    }
+  }
+
+  return {};
+}
+
 function readableError(error, fallback = '调用失败') {
   const parts = [
     error?.message,
@@ -194,7 +211,7 @@ async function classifyViaCloudbase(imageDataUrl, hint) {
     30000,
     '调用小程序云函数混元识别超时'
   );
-  const body = parseMaybeJson(response?.result) || {};
+  const body = unwrapCloudFunctionResponse(response);
   if (!body.ok) {
     throw new Error(body.message || body.error || '小程序云函数 classifyImage 返回失败');
   }
