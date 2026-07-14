@@ -109,8 +109,20 @@ function classifyByText(text = '') {
   return { category: '其他', aiTags: ['待确认'], confidence: 0 };
 }
 
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null) return [];
+  if (typeof value === 'string') {
+    return value
+      .split(/[,，、;；\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [value];
+}
+
 function unique(list) {
-  return Array.from(new Set((list || []).filter(Boolean)));
+  return Array.from(new Set(toArray(list).map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
 function parseJsonContent(content = '') {
