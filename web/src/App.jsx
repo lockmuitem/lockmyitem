@@ -39,6 +39,8 @@ function App() {
   const [view, setView] = useState('found');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [selectedId, setSelectedId] = useState(null);
+  const [detailReturnTarget, setDetailReturnTarget] = useState(null);
+  const [publishDraft, setPublishDraft] = useState(null);
   const [commentsByItem, setCommentsByItem] = useState({});
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState('');
@@ -107,13 +109,17 @@ function App() {
 
   const selectedItem = items.find((item) => item.id === selectedId);
 
-  function openDetail(id) {
+  function openDetail(id, returnTarget = null) {
     setSelectedId(id);
+    setDetailReturnTarget(returnTarget);
     setView('detail');
   }
 
   function openTab(key) {
     setActiveCategory('全部');
+    setSelectedId(null);
+    setDetailReturnTarget(null);
+    setPublishDraft(null);
     setView(key);
   }
 
@@ -127,8 +133,37 @@ function App() {
 
   function openPublish(type = 'found') {
     requireAuth(type === 'lost' ? '发布寻物' : '发布招领', () => {
+      setSelectedId(null);
+      setDetailReturnTarget(null);
+      setPublishDraft(null);
       setView(type === 'lost' ? 'publish-lost' : 'publish-found');
     });
+  }
+
+  function openMatchDetailFromPublish(id, draft) {
+    const nextDraft = {
+      ...draft,
+      tags: [...(draft.tags || [])],
+      rawPredictions: [...(draft.rawPredictions || [])],
+      locationImages: [...(draft.locationImages || [])]
+    };
+    setPublishDraft(nextDraft);
+    openDetail(id, {
+      view: nextDraft.type === 'lost' ? 'publish-lost' : 'publish-found',
+      scrollY: window.scrollY
+    });
+  }
+
+  function backFromDetail() {
+    if (detailReturnTarget?.view?.startsWith('publish')) {
+      const scrollY = detailReturnTarget.scrollY || 0;
+      setSelectedId(null);
+      setDetailReturnTarget(null);
+      setView(detailReturnTarget.view);
+      window.requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
+      return;
+    }
+    openTab(selectedItem.status === 'returned' ? 'returned' : selectedItem.type);
   }
 
   async function publishItem(payload) {
@@ -149,6 +184,8 @@ function App() {
     }
     setItems((current) => [nextItem, ...current]);
     setSelectedId(null);
+    setDetailReturnTarget(null);
+    setPublishDraft(null);
     setActiveCategory('全部');
     setView(payload.type === 'lost' ? 'lost' : 'found');
     if (cloudSynced) {
@@ -159,7 +196,7 @@ function App() {
   }
 
   function submitClaim(item) {
-    requireAuth(item.type === 'lost' ? '提供线索' : '认领物品', async (user) => {
+    requireAuth('认领物品', async (user) => {
       const claim = {
         id: `claim_${Date.now()}`,
         userId: user.id,
@@ -167,16 +204,14 @@ function App() {
         contact: user.contact,
         createdAt: new Date().toISOString()
       };
-      const content = item.type === 'lost'
-        ? `${user.nickName} 提供线索：${user.contact}`
-        : `${user.nickName} 申请认领：${user.contact}`;
+      const content = `${user.nickName} 申请认领：${user.contact}`;
       try {
         const comment = await createCloudComment(item.id, content, user);
         setCommentsByItem((current) => ({
           ...current,
           [item.id]: [...(current[item.id] || []), comment]
         }));
-        setToast(item.type === 'lost' ? '线索已同步提交' : '认领申请已同步提交');
+        setToast('认领申请已同步提交');
       } catch (error) {
         setItems((current) => current.map((entry) => (
           entry.id === item.id
@@ -300,10 +335,12 @@ function App() {
       {view.startsWith('publish') && (
         <PublishPage
           initialType={view === 'publish-lost' ? 'lost' : 'found'}
+          initialDraft={publishDraft}
           items={items}
           currentUser={currentUser}
           onCancel={() => openTab(view === 'publish-lost' ? 'lost' : 'found')}
           onSubmit={publishItem}
+          onOpenMatch={openMatchDetailFromPublish}
         />
       )}
 
@@ -312,7 +349,7 @@ function App() {
           item={selectedItem}
           items={items}
           comments={commentsByItem[selectedItem.id] || []}
-          onBack={() => openTab(selectedItem.status === 'returned' ? 'returned' : selectedItem.type)}
+          onBack={backFromDetail}
           onClaim={() => submitClaim(selectedItem)}
           onMarkReturned={() => markReturned(selectedItem.id)}
           onUndoReturned={() => undoReturned(selectedItem.id)}
@@ -592,22 +629,22 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
   );
 }
 
-function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
+function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, onSubmit, onOpenMatch }) {
   const defaultLocation = locations[0];
-  const [form, setForm] = useState({
-    type: initialType,
-    title: '',
-    description: '',
-    category: '',
-    tags: [],
-    visualDescription: '',
-    rawPredictions: [],
-    locationId: defaultLocation.id,
-    locationDetail: defaultLocation.mapDescription || defaultLocation.guide,
-    locationImages: [],
-    image: '',
-    ownerName: currentUser?.nickName || '网页用户'
-  });
+  const [form, setForm] = useState(() => ({
+    type: initialDraft?.type || initialType,
+    title: initialDraft?.title || '',
+    description: initialDraft?.description || '',
+    category: initialDraft?.category || '',
+    tags: [...(initialDraft?.tags || [])],
+    visualDescription: initialDraft?.visualDescription || '',
+    rawPredictions: [...(initialDraft?.rawPredictions || [])],
+    locationId: initialDraft?.locationId || defaultLocation.id,
+    locationDetail: initialDraft?.locationDetail || defaultLocation.mapDescription || defaultLocation.guide,
+    locationImages: [...(initialDraft?.locationImages || [])],
+    image: initialDraft?.image || '',
+    ownerName: currentUser?.nickName || initialDraft?.ownerName || '网页用户'
+  }));
   const [classifying, setClassifying] = useState(false);
   const [modelError, setModelError] = useState('');
   const [aiProcessStage, setAiProcessStage] = useState('idle');
@@ -908,7 +945,7 @@ function PublishPage({ initialType, items, currentUser, onCancel, onSubmit }) {
                   <span className="match-meta">{locationText(item)} · 相似度 {item.similarity}%</span>
                   <span className="match-reason">{item.reasons.join('、')}</span>
                 </div>
-                <span className="match-pill">查看</span>
+                <button className="match-pill" type="button" onClick={() => onOpenMatch(item.id, form)}>查看</button>
               </div>
             ))}
           </div>
@@ -1255,7 +1292,6 @@ function DetailPage({ item, items, comments = [], onBack, onClaim, onComment }) 
   const [submittingComment, setSubmittingComment] = useState(false);
   const matches = findPotentialMatches(item, items);
   const location = getLocation(item.locationId);
-  const claimCount = item.claims?.length || 0;
 
   async function submitComment(event) {
     event.preventDefault();
@@ -1310,17 +1346,12 @@ function DetailPage({ item, items, comments = [], onBack, onClaim, onComment }) 
         <p className="map-note">地图为辅助定位，具体位置以发布人选择的地点标记为准。</p>
       </div>
 
-      <div className="action-grid">
-        <button className="button-secondary" type="button">联系发布人</button>
-        {item.status === 'active' && (
-          <button className="button-primary" type="button" onClick={onClaim}>
-            {item.type === 'lost' ? '我有线索' : '我要认领'}
+      {item.type === 'found' && item.status === 'active' && (
+        <div className="detail-action-row">
+          <button className="button-primary detail-claim-button" type="button" onClick={onClaim}>
+            我要认领
           </button>
-        )}
-        <button className="button-danger" type="button">举报</button>
-      </div>
-      {claimCount > 0 && (
-        <p className="claim-note">{claimCount} 位同学已提交{item.type === 'lost' ? '线索' : '认领申请'}，请等待发布人确认。</p>
+        </div>
       )}
 
       {matches.length > 0 && (

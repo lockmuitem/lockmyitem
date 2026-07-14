@@ -1562,26 +1562,16 @@ p {
   line-height: 1.4;
 }
 
-.action-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
+.detail-action-row {
+  margin: 12px 0 10px;
 }
 
-.action-grid .button-danger {
-  grid-column: 1 / -1;
-}
-
-.claim-note {
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  color: #6d4b05;
-  background: #fff8e6;
-  border: 1px solid #f6d58f;
-  border-radius: 8px;
-  font-size: 12.5px;
+.detail-claim-button {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 14px;
+  font-size: 17px;
   font-weight: 800;
-  line-height: 1.4;
 }
 
 .section-title {
