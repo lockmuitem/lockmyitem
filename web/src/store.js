@@ -163,6 +163,7 @@ function normalizeItem(raw = {}) {
     tags,
     image: raw.image || raw.thumbUrl || imageUrls[0] || categoryImages[category] || categoryImages.其他,
     imageUrls,
+    imageFileIds: raw.imageFileIds || [],
     visualDescription: raw.visualDescription || '',
     rawPredictions: raw.rawPredictions || [],
     locationId: raw.locationId || '',
@@ -194,6 +195,7 @@ function compactItem(item) {
     ...item,
     image: typeof item.image === 'string' && item.image.startsWith('data:') ? '' : item.image,
     imageUrls: (item.imageUrls || []).filter((image) => !String(image).startsWith('data:')),
+    imageFileIds: item.imageFileIds || [],
     locationImages: []
   };
 }
@@ -229,12 +231,13 @@ export function saveItems(items) {
 }
 
 export async function loadCloudItems() {
+  const localOnlyItems = loadItems().filter((item) => item.localOnly);
   const [activeItems, returnedItems] = await Promise.all([
     listCloudItemsByStatus('active'),
     listCloudItemsByStatus('returned')
   ]);
   const seen = new Set();
-  const items = [...activeItems, ...returnedItems]
+  const items = [...localOnlyItems, ...activeItems, ...returnedItems]
     .map(normalizeItem)
     .filter((item) => {
       if (seen.has(item.id)) return false;
@@ -285,6 +288,7 @@ function buildItemPayload(payload, currentUser) {
   const description = (payload.description || '').trim() || '暂无补充描述';
   const imageUrls = unique([
     payload.image && !String(payload.image).startsWith('/assets/') ? payload.image : '',
+    ...(payload.imageFileIds || []),
     ...(payload.imageUrls || [])
   ]);
   const location = locationPayload(payload.locationId);
@@ -338,6 +342,8 @@ export function createItem(payload) {
     ...data,
     id: `item_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
     image: payload.image || categoryImages[data.category] || categoryImages.其他,
+    imageFileIds: data.imageFileIds || [],
+    localOnly: true,
     status: 'active',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()

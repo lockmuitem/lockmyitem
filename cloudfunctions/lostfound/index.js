@@ -189,6 +189,135 @@ function validateClassifyImagePayload(event = {}) {
   return null;
 }
 
+function isDataImageUrl(value = '') {
+  return /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(String(value || '').trim());
+}
+
+function isCloudFileId(value = '') {
+  return /^cloud:\/\//i.test(String(value || '').trim());
+}
+
+function isHttpUrl(value = '') {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function extensionFromMimeType(mimeType = '') {
+  const normalized = String(mimeType || '').toLowerCase();
+  if (normalized.includes('png')) return 'png';
+  if (normalized.includes('webp')) return 'webp';
+  if (normalized.includes('gif')) return 'gif';
+  return 'jpg';
+}
+
+function parseDataImageUrl(value = '') {
+  const match = String(value || '').trim().match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/i);
+  if (!match) return null;
+
+  const mimeType = match[1].toLowerCase();
+  const base64 = match[2].replace(/\s/g, '');
+  const buffer = Buffer.from(base64, 'base64');
+  if (!buffer.length) throw new Error('图片内容为空');
+  if (buffer.length > CLASSIFY_LIMITS.maxImageBytes) {
+    throw new Error('图片过大，请压缩到 4MB 以内后再发布');
+  }
+
+  return {
+    buffer,
+    mimeType,
+    extension: extensionFromMimeType(mimeType)
+  };
+}
+
+async function uploadItemDataImage(dataUrl, actorId = '') {
+  const parsed = parseDataImageUrl(dataUrl);
+  if (!parsed) return '';
+  const safeActorId = sha256(actorId || 'anonymous').slice(0, 16);
+  const random = crypto.randomBytes(8).toString('hex');
+  const cloudPath = `lostfound/items/${safeActorId}/${Date.now()}-${random}.${parsed.extension}`;
+  const result = await cloud.uploadFile({
+    cloudPath,
+    fileContent: parsed.buffer
+  });
+  return result.fileID || result.fileId || '';
+}
+
+async function prepareItemImages(imageUrls = [], actorId = '') {
+  const imageFileIds = [];
+  const publicImageUrls = [];
+  const sources = unique(imageUrls).slice(0, 6);
+
+  for (const source of sources) {
+    const value = String(source || '').trim();
+    if (!value) continue;
+
+    if (isDataImageUrl(value)) {
+      const fileId = await uploadItemDataImage(value, actorId);
+      if (fileId) imageFileIds.push(fileId);
+      continue;
+    }
+
+    if (isCloudFileId(value)) {
+      imageFileIds.push(value);
+      continue;
+    }
+
+    if (isHttpUrl(value)) publicImageUrls.push(value);
+  }
+
+  return {
+    imageFileIds: unique(imageFileIds),
+    imageUrls: unique(publicImageUrls)
+  };
+}
+
+async function resolveTempFileUrlMap(fileIds = []) {
+  const ids = unique(fileIds).filter(isCloudFileId);
+  if (!ids.length) return {};
+
+  try {
+    const result = await cloud.getTempFileURL({ fileList: ids });
+    const map = {};
+    (result.fileList || []).forEach((file) => {
+      const fileId = file.fileID || file.fileId;
+      const url = file.tempFileURL || file.download_url;
+      if (fileId && url) map[fileId] = url;
+    });
+    return map;
+  } catch (error) {
+    console.warn('Failed to resolve CloudBase image temp URLs.', error);
+    return {};
+  }
+}
+
+async function hydrateItemImages(items = []) {
+  const list = Array.isArray(items) ? items : [items];
+  const allFileIds = [];
+  list.forEach((item) => {
+    allFileIds.push(...(item.imageFileIds || []));
+    allFileIds.push(...(item.imageUrls || []).filter(isCloudFileId));
+  });
+  const tempUrlMap = await resolveTempFileUrlMap(allFileIds);
+
+  return list.map((item) => {
+    const imageFileIds = unique([
+      ...(item.imageFileIds || []),
+      ...(item.imageUrls || []).filter(isCloudFileId)
+    ]);
+    const tempUrls = imageFileIds.map((fileId) => tempUrlMap[fileId]).filter(Boolean);
+    const publicUrls = (item.imageUrls || []).filter((url) => (
+      isHttpUrl(url) && !isDataImageUrl(url) && !isCloudFileId(url)
+    ));
+    const imageUrls = unique([...tempUrls, ...publicUrls]);
+
+    return {
+      ...item,
+      imageFileIds,
+      imageUrls,
+      thumbUrl: imageUrls[0] || item.thumbUrl || ''
+    };
+  });
+}
+
 function pruneClassifyRateBuckets(nowMs) {
   if (classifyRateBuckets.size < 1000) return;
   for (const [key, bucket] of classifyRateBuckets.entries()) {
@@ -616,7 +745,8 @@ async function createItem(event, context) {
   const actor = requireActorId(context);
   if (actor.error) return actor.error;
   const payload = event.payload || {};
-  if (!(payload.imageUrls || []).length && !payload.category) return fail('请上传图片或选择分类');
+  const preparedImages = await prepareItemImages(payload.imageUrls || [], actor.actorId);
+  if (!preparedImages.imageFileIds.length && !preparedImages.imageUrls.length && !payload.category) return fail('请上传图片或选择分类');
   let location = null;
   if (payload.locationId) {
     const locationResult = await db.collection(COLLECTIONS.locations).doc(payload.locationId).get();
@@ -635,8 +765,9 @@ async function createItem(event, context) {
     description: payload.description || '',
     category: classification.category,
     aiTags: classification.aiTags,
-    imageUrls: payload.imageUrls || [],
-    thumbUrl: (payload.imageUrls || [])[0] || '',
+    imageFileIds: preparedImages.imageFileIds,
+    imageUrls: preparedImages.imageUrls,
+    thumbUrl: preparedImages.imageUrls[0] || '',
     visualDescription: payload.visualDescription || '',
     yoloObjects: payload.yoloObjects || [],
     semanticTags: payload.semanticTags || [],
@@ -659,7 +790,8 @@ async function createItem(event, context) {
     updatedAt: now()
   };
   const created = await db.collection(COLLECTIONS.items).add({ data });
-  return ok({ _id: created._id, ...data });
+  const hydrated = await hydrateItemImages([{ _id: created._id, ...data }]);
+  return ok(hydrated[0]);
 }
 
 async function listItems(event) {
@@ -674,7 +806,8 @@ async function listItems(event) {
     .skip(filters.cursor || 0)
     .limit(filters.limit || 20)
     .get();
-  return ok({ items: result.data, nextCursor: (filters.cursor || 0) + result.data.length });
+  const items = await hydrateItemImages(result.data);
+  return ok({ items, nextCursor: (filters.cursor || 0) + result.data.length });
 }
 
 async function getItemDetail(event) {
@@ -683,7 +816,8 @@ async function getItemDetail(event) {
     .where({ itemId: event.itemId, status: 'active' })
     .orderBy('createdAt', 'asc')
     .get();
-  return ok({ item: item.data, comments: comments.data });
+  const items = await hydrateItemImages([item.data]);
+  return ok({ item: items[0], comments: comments.data });
 }
 
 async function createComment(event, context) {
