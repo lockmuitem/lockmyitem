@@ -7,6 +7,7 @@
     "lodash.set": "file:vendor/lodash.set",
     "lodash.unset": "file:vendor/lodash.unset",
     "node-fetch": "^2.7.0",
+    "nodemailer": "^9.0.3",
     "ws": "^8.21.0",
     "wx-server-sdk": "4.0.2"
   },

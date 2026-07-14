@@ -103,6 +103,11 @@ export function getClientId() {
   }
 }
 
+function getAuthToken() {
+  const user = loadUser();
+  return user?.authToken || '';
+}
+
 async function ensureCloudbaseAuth(app) {
   const auth = typeof app.auth === 'function' ? app.auth({ persistence: 'local' }) : app.auth;
   if (!auth) return;
@@ -149,7 +154,8 @@ async function callLostfound(action, data = {}, timeoutMs = 15000) {
       data: {
         ...data,
         action,
-        clientId: getClientId()
+        clientId: getClientId(),
+        authToken: data.authToken || getAuthToken()
       }
     }),
     timeoutMs,
@@ -344,7 +350,10 @@ export function loadUser() {
   if (!saved) return null;
   try {
     const parsed = JSON.parse(saved);
-    return parsed && parsed.user ? parsed.user : null;
+    const user = parsed && parsed.user ? parsed.user : null;
+    const email = user?.email || user?.contact || '';
+    if (!user?.authToken || !String(email).toLowerCase().endsWith('@shanghaitech.edu.cn')) return null;
+    return user;
   } catch {
     return null;
   }
@@ -353,12 +362,43 @@ export function loadUser() {
 export function saveUser(user) {
   const storage = localStorageSafe();
   if (!storage) return;
-  storage.setItem(AUTH_KEY, JSON.stringify({ user }));
+  storage.setItem(AUTH_KEY, JSON.stringify({ user: normalizeAuthUser(user) }));
 }
 
 export function clearUser() {
   const storage = localStorageSafe();
   if (storage) storage.removeItem(AUTH_KEY);
+}
+
+function normalizeAuthUser(user = {}) {
+  const email = user.email || user.contact || '';
+  return {
+    ...user,
+    id: user.id || user._id || user.actorId || `user_${Date.now()}`,
+    nickName: user.nickName || (email ? email.split('@')[0] : '网页用户'),
+    contact: email,
+    email,
+    authToken: user.authToken || ''
+  };
+}
+
+export async function sendEmailCode(email, purpose = 'login') {
+  return callLostfound('sendEmailCode', { email, purpose }, 15000);
+}
+
+export async function registerWithEmail({ email, password, code, nickName }) {
+  const data = await callLostfound('registerWithEmail', { email, password, code, nickName }, 15000);
+  return normalizeAuthUser(data);
+}
+
+export async function loginWithEmailPassword({ email, password }) {
+  const data = await callLostfound('loginWithEmailPassword', { email, password }, 15000);
+  return normalizeAuthUser(data);
+}
+
+export async function loginWithEmailCode({ email, code }) {
+  const data = await callLostfound('loginWithEmailCode', { email, code }, 15000);
+  return normalizeAuthUser(data);
 }
 
 export function createItem(payload) {

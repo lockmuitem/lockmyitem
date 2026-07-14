@@ -33,6 +33,20 @@ HUNYUAN_MODEL=hunyuan-vision
 
 If both Tencent Cloud `SecretId/SecretKey` and `HUNYUAN_API_KEY` exist, the cloud function prefers Tencent Cloud signed API calls.
 
+Optional ShanghaiTech email login:
+
+```env
+AUTH_EMAIL_DOMAIN=shanghaitech.edu.cn
+AUTH_TOKEN_SECRET=use-a-long-random-server-side-secret
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_USER=your-sender@example.com
+SMTP_PASS=your-smtp-password-or-app-password
+SMTP_FROM=LockMyItem <your-sender@example.com>
+```
+
+`AUTH_TOKEN_SECRET` and all SMTP credentials must stay in CloudBase environment variables. Do not put real values in frontend code or GitHub.
+
 ## Deploy
 
 1. Open the project in WeChat DevTools.

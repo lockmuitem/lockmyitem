@@ -1851,6 +1851,29 @@ p {
   box-shadow: 0 3px 7px rgba(23, 42, 51, 0.08);
 }
 
+.auth-method {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: -2px 0 12px;
+}
+
+.auth-method button {
+  height: 34px;
+  color: #667085;
+  background: #F7F8F4;
+  border: 1px solid #E0E6DF;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.auth-method .active {
+  color: var(--notice-green);
+  background: #E8F4EF;
+  border-color: #B7D9CC;
+}
+
 .auth-field {
   display: block;
   margin-bottom: 10px;
@@ -1874,6 +1897,38 @@ p {
   border-radius: 12px;
   font-size: 14.5px;
   outline: 0;
+}
+
+.auth-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  gap: 8px;
+}
+
+.auth-code-row button {
+  height: 43px;
+  color: var(--notice-green);
+  background: #EEF7F1;
+  border: 1px solid #CBE2D5;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.auth-code-row button:disabled,
+.auth-submit:disabled {
+  opacity: 0.64;
+}
+
+.auth-status {
+  margin: 4px 0 10px;
+  padding: 8px 10px;
+  color: #087443;
+  background: #ECFDF3;
+  border: 1px solid #ABEFC6;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .auth-error {

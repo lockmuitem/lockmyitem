@@ -14,6 +14,7 @@ const COLLECTIONS = {
   notifications: 'notifications',
   reports: 'reports',
   locations: 'campus_locations',
+  emailCodes: 'email_login_codes',
   rateLimits: 'classify_rate_limits'
 };
 
@@ -61,9 +62,30 @@ const CLASSIFY_LIMITS = {
   windowMs: positiveNumber(process.env.CLASSIFY_RATE_LIMIT_WINDOW_MS, 10 * 60 * 1000)
 };
 
+const AUTH_CONFIG = {
+  emailDomain: (process.env.AUTH_EMAIL_DOMAIN || 'shanghaitech.edu.cn').toLowerCase(),
+  tokenTtlMs: positiveNumber(process.env.AUTH_TOKEN_TTL_MS, 30 * 24 * 60 * 60 * 1000),
+  codeTtlMs: positiveNumber(process.env.AUTH_CODE_TTL_MS, 10 * 60 * 1000),
+  codeCooldownMs: positiveNumber(process.env.AUTH_CODE_COOLDOWN_MS, 60 * 1000),
+  maxCodeAttempts: positiveNumber(process.env.AUTH_CODE_MAX_ATTEMPTS, 5),
+  passwordIterations: positiveNumber(process.env.AUTH_PASSWORD_ITERATIONS, 120000),
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: positiveNumber(process.env.SMTP_PORT, 465),
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  tokenSecret: process.env.AUTH_TOKEN_SECRET
+    || HUNYUAN_CONFIG.apiKey
+    || HUNYUAN_CONFIG.secretKey
+    || process.env.TENCENT_SECRET_KEY
+    || 'lockmyitem-dev-token-secret'
+};
+
 const classifyRateBuckets = new Map();
 let rateLimitCollectionReady = false;
 let rateLimitCollectionDisabled = false;
+let emailCodeCollectionReady = false;
+let emailCodeCollectionDisabled = false;
 
 function optionalNumber(value) {
   const number = Number(value);
@@ -374,13 +396,17 @@ function getWebClientActorId(event = {}) {
 }
 
 function getActorId(context = {}, event = {}) {
-  return firstTrustedContextValue(context, [
+  const trustedActor = firstTrustedContextValue(context, [
     'OPENID',
     'UNIONID',
     'UID',
     'TCB_UUID',
     'TcbUuid'
-  ]) || getWebClientActorId(event);
+  ]);
+  if (trustedActor) return trustedActor;
+  const tokenPayload = verifyAuthToken(event.authToken);
+  if (tokenPayload && tokenPayload.sub) return tokenPayload.sub;
+  return getWebClientActorId(event);
 }
 
 function requireActorId(context = {}, event = {}) {
@@ -483,12 +509,124 @@ async function checkPersistentClassifyRateLimit(event = {}, context = {}) {
   });
 }
 
+async function ensureEmailCodeCollection() {
+  if (emailCodeCollectionReady) return true;
+  if (emailCodeCollectionDisabled) return false;
+
+  try {
+    await db.createCollection(COLLECTIONS.emailCodes);
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) {
+      emailCodeCollectionDisabled = true;
+      return false;
+    }
+  }
+
+  emailCodeCollectionReady = true;
+  return true;
+}
+
 function sha256(value, encoding = 'hex') {
   return crypto.createHash('sha256').update(value, 'utf8').digest(encoding);
 }
 
 function hmac(key, value, encoding) {
   return crypto.createHmac('sha256', key).update(value, 'utf8').digest(encoding);
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(value, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function base64UrlDecode(value) {
+  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function safeEqual(left = '', right = '') {
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function normalizeShanghaiTechEmail(email = '') {
+  const value = String(email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return '';
+  return value.endsWith(`@${AUTH_CONFIG.emailDomain}`) ? value : '';
+}
+
+function emailHash(email = '') {
+  return sha256(normalizeShanghaiTechEmail(email));
+}
+
+function sanitizeNickName(value = '', fallback = '网页用户') {
+  const text = String(value || '').replace(/[\r\n\t]+/g, ' ').trim();
+  return (text || fallback).slice(0, 40);
+}
+
+function publicEmailUser(user = {}, token = '') {
+  return {
+    id: user._id || user.id || user.actorId || '',
+    actorId: user._openid || user.actorId || '',
+    nickName: sanitizeNickName(user.nickName || user.emailPrefix),
+    contact: user.email || user.contact || '',
+    email: user.email || user.contact || '',
+    authProvider: user.authProvider || 'email',
+    createdAt: user.createdAt || '',
+    authToken: token || ''
+  };
+}
+
+function createPasswordHash(password = '') {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(String(password), salt, AUTH_CONFIG.passwordIterations, 32, 'sha256').toString('hex');
+  return { passwordSalt: salt, passwordHash: hash };
+}
+
+function verifyPassword(password = '', user = {}) {
+  if (!user.passwordSalt || !user.passwordHash) return false;
+  const hash = crypto.pbkdf2Sync(String(password), user.passwordSalt, AUTH_CONFIG.passwordIterations, 32, 'sha256').toString('hex');
+  return safeEqual(hash, user.passwordHash);
+}
+
+function createAuthToken(user = {}) {
+  const email = normalizeShanghaiTechEmail(user.email || user.contact || '');
+  const actorId = user._openid || user.actorId || `email:${emailHash(email)}`;
+  const payload = {
+    sub: actorId,
+    email,
+    name: sanitizeNickName(user.nickName || email.split('@')[0]),
+    exp: Date.now() + AUTH_CONFIG.tokenTtlMs
+  };
+  const body = base64UrlEncode(JSON.stringify(payload));
+  const signature = hmac(AUTH_CONFIG.tokenSecret, body, 'base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+  return `${body}.${signature}`;
+}
+
+function verifyAuthToken(token = '') {
+  const value = String(token || '').trim();
+  const parts = value.split('.');
+  if (parts.length !== 2) return null;
+  const expected = hmac(AUTH_CONFIG.tokenSecret, parts[0], 'base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+  if (!safeEqual(expected, parts[1])) return null;
+  try {
+    const payload = JSON.parse(base64UrlDecode(parts[0]));
+    if (!payload.sub || !payload.exp || Number(payload.exp) < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function formatUtcDate(timestamp) {
@@ -657,6 +795,181 @@ async function ensureUser(openid, profile = {}) {
   };
   const created = await db.collection(COLLECTIONS.users).add({ data: user });
   return { _id: created._id, _openid: openid, ...user };
+}
+
+async function getEmailUser(email) {
+  const normalized = normalizeShanghaiTechEmail(email);
+  if (!normalized) return null;
+  const result = await db.collection(COLLECTIONS.users)
+    .where({ emailHash: emailHash(normalized), authProvider: 'email' })
+    .limit(1)
+    .get();
+  return (result.data || [])[0] || null;
+}
+
+async function sendEmailViaSmtp(to, code) {
+  if (!AUTH_CONFIG.smtpHost || !AUTH_CONFIG.smtpUser || !AUTH_CONFIG.smtpPass || !AUTH_CONFIG.smtpFrom) {
+    throw new Error('邮件服务未配置，请在云函数环境变量中配置 SMTP_HOST/SMTP_USER/SMTP_PASS/SMTP_FROM');
+  }
+  let nodemailer;
+  try {
+    nodemailer = require('nodemailer');
+  } catch (error) {
+    throw new Error(`云函数缺少 nodemailer 依赖，请重新安装并部署依赖：${error.message}`);
+  }
+  const transporter = nodemailer.createTransport({
+    host: AUTH_CONFIG.smtpHost,
+    port: AUTH_CONFIG.smtpPort,
+    secure: AUTH_CONFIG.smtpPort === 465,
+    auth: {
+      user: AUTH_CONFIG.smtpUser,
+      pass: AUTH_CONFIG.smtpPass
+    }
+  });
+  await transporter.sendMail({
+    from: AUTH_CONFIG.smtpFrom,
+    to,
+    subject: 'LockMyItem 上科大失物招领验证码',
+    text: `你的验证码是 ${code}，10 分钟内有效。若非本人操作，请忽略本邮件。`,
+    html: `<p>你的验证码是：</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p><p>10 分钟内有效。若非本人操作，请忽略本邮件。</p>`
+  });
+}
+
+async function sendEmailCode(event) {
+  const email = normalizeShanghaiTechEmail(event.email);
+  if (!email) return fail(`请使用 @${AUTH_CONFIG.emailDomain} 邮箱`, 'INVALID_EMAIL');
+  const ready = await ensureEmailCodeCollection();
+  if (!ready) return fail('验证码存储未就绪，请先在云开发数据库创建 email_login_codes 集合', 'EMAIL_CODE_STORE_ERROR');
+
+  const hashedEmail = emailHash(email);
+  const nowMs = Date.now();
+  const recent = await db.collection(COLLECTIONS.emailCodes)
+    .where({ emailHash: hashedEmail })
+    .orderBy('createdAtMs', 'desc')
+    .limit(1)
+    .get();
+  const latest = (recent.data || [])[0];
+  if (latest && latest.createdAtMs && nowMs - latest.createdAtMs < AUTH_CONFIG.codeCooldownMs) {
+    return fail('验证码发送过于频繁，请稍后再试', 'CODE_COOLDOWN');
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const salt = crypto.randomBytes(12).toString('hex');
+  const data = {
+    emailHash: hashedEmail,
+    codeHash: sha256(`${email}:${code}:${salt}`),
+    codeSalt: salt,
+    purpose: event.purpose || 'login',
+    attempts: 0,
+    used: false,
+    createdAtMs: nowMs,
+    expiresAtMs: nowMs + AUTH_CONFIG.codeTtlMs,
+    createdAt: now()
+  };
+
+  const created = await db.collection(COLLECTIONS.emailCodes).add({ data });
+  try {
+    await sendEmailViaSmtp(email, code);
+  } catch (error) {
+    if (created && created._id) {
+      await db.collection(COLLECTIONS.emailCodes).doc(created._id).update({
+        data: { used: true, failedAt: now(), updatedAt: now() }
+      }).catch(() => null);
+    }
+    return fail(error.message || '验证码邮件发送失败', 'EMAIL_SEND_FAILED');
+  }
+
+  return ok({ email, expiresInSeconds: Math.floor(AUTH_CONFIG.codeTtlMs / 1000) });
+}
+
+async function verifyEmailCode(email, code) {
+  const normalized = normalizeShanghaiTechEmail(email);
+  const value = String(code || '').trim();
+  if (!normalized || !/^\d{6}$/.test(value)) return fail('验证码格式不正确', 'INVALID_CODE');
+  const ready = await ensureEmailCodeCollection();
+  if (!ready) return fail('验证码存储未就绪', 'EMAIL_CODE_STORE_ERROR');
+
+  const nowMs = Date.now();
+  const result = await db.collection(COLLECTIONS.emailCodes)
+    .where({ emailHash: emailHash(normalized), used: false })
+    .orderBy('createdAtMs', 'desc')
+    .limit(5)
+    .get();
+  const record = (result.data || []).find((entry) => entry.expiresAtMs && entry.expiresAtMs >= nowMs);
+  if (!record) return fail('验证码已过期或不存在，请重新获取', 'CODE_EXPIRED');
+  if ((record.attempts || 0) >= AUTH_CONFIG.maxCodeAttempts) {
+    return fail('验证码尝试次数过多，请重新获取', 'CODE_LOCKED');
+  }
+  const expected = sha256(`${normalized}:${value}:${record.codeSalt}`);
+  if (!safeEqual(expected, record.codeHash)) {
+    await db.collection(COLLECTIONS.emailCodes).doc(record._id).update({
+      data: { attempts: _.inc(1), updatedAt: now() }
+    });
+    return fail('验证码不正确', 'INVALID_CODE');
+  }
+  await db.collection(COLLECTIONS.emailCodes).doc(record._id).update({
+    data: { used: true, usedAt: now(), updatedAt: now() }
+  });
+  return null;
+}
+
+async function createEmailUser({ email, password = '', nickName = '' }) {
+  const normalized = normalizeShanghaiTechEmail(email);
+  if (!normalized) return null;
+  const actorId = `email:${emailHash(normalized)}`;
+  const passwordData = password ? createPasswordHash(password) : {};
+  const data = {
+    _openid: actorId,
+    authProvider: 'email',
+    email: normalized,
+    emailHash: emailHash(normalized),
+    emailPrefix: normalized.split('@')[0],
+    nickName: sanitizeNickName(nickName || normalized.split('@')[0]),
+    avatarUrl: '',
+    ...passwordData,
+    createdAt: now(),
+    updatedAt: now()
+  };
+  const created = await db.collection(COLLECTIONS.users).add({ data });
+  return { _id: created._id, ...data };
+}
+
+async function registerWithEmail(event) {
+  const email = normalizeShanghaiTechEmail(event.email);
+  const password = String(event.password || '');
+  if (!email) return fail(`请使用 @${AUTH_CONFIG.emailDomain} 邮箱`, 'INVALID_EMAIL');
+  if (password.length < 6) return fail('密码至少需要 6 位', 'WEAK_PASSWORD');
+  const existed = await getEmailUser(email);
+  if (existed) return fail('该邮箱已注册，请直接登录', 'EMAIL_EXISTS');
+  const codeError = await verifyEmailCode(email, event.code);
+  if (codeError) return codeError;
+  const user = await createEmailUser({ email, password, nickName: event.nickName });
+  const token = createAuthToken(user);
+  return ok(publicEmailUser(user, token));
+}
+
+async function loginWithEmailPassword(event) {
+  const email = normalizeShanghaiTechEmail(event.email);
+  if (!email) return fail(`请使用 @${AUTH_CONFIG.emailDomain} 邮箱`, 'INVALID_EMAIL');
+  const user = await getEmailUser(email);
+  if (!user || !verifyPassword(event.password, user)) {
+    return fail('邮箱或密码不正确', 'INVALID_CREDENTIALS');
+  }
+  const token = createAuthToken(user);
+  return ok(publicEmailUser(user, token));
+}
+
+async function loginWithEmailCode(event) {
+  const email = normalizeShanghaiTechEmail(event.email);
+  if (!email) return fail(`请使用 @${AUTH_CONFIG.emailDomain} 邮箱`, 'INVALID_EMAIL');
+  const codeError = await verifyEmailCode(email, event.code);
+  if (codeError) return codeError;
+  let user = await getEmailUser(email);
+  if (!user) {
+    user = await createEmailUser({ email, nickName: event.nickName });
+  }
+  const token = createAuthToken(user);
+  return ok(publicEmailUser(user, token));
 }
 
 async function createNotification(userOpenid, type, content, itemId, actorOpenid) {
@@ -978,6 +1291,14 @@ exports.main = async (event = {}) => {
     switch (event.action) {
       case 'login':
         return await login(event, context);
+      case 'sendEmailCode':
+        return await sendEmailCode(event);
+      case 'registerWithEmail':
+        return await registerWithEmail(event);
+      case 'loginWithEmailPassword':
+        return await loginWithEmailPassword(event);
+      case 'loginWithEmailCode':
+        return await loginWithEmailCode(event);
       case 'createItem':
         return await createItem(event, context);
       case 'classifyImage':

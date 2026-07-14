@@ -11,8 +11,12 @@ import {
   loadCloudItems,
   loadItems,
   loadUser,
+  loginWithEmailCode,
+  loginWithEmailPassword,
+  registerWithEmail,
   saveItems,
   saveUser,
+  sendEmailCode,
   setCloudReturnStatus
 } from './store.js';
 import { classifyByText, findPotentialMatches, formatDate, getLocation, semanticSearchItems } from './utils.js';
@@ -244,7 +248,15 @@ function App() {
     });
   }
 
-  function handleAuthSubmit(user) {
+  async function handleAuthSubmit(authPayload) {
+    let user;
+    if (authPayload.mode === 'register') {
+      user = await registerWithEmail(authPayload);
+    } else if (authPayload.method === 'code') {
+      user = await loginWithEmailCode(authPayload);
+    } else {
+      user = await loginWithEmailPassword(authPayload);
+    }
     saveUser(user);
     setCurrentUser(user);
     const pending = authPrompt?.onAuthed;
@@ -404,6 +416,7 @@ function App() {
             authPrompt.onCancel?.();
             setAuthPrompt(null);
           }}
+          onSendCode={sendEmailCode}
           onSubmit={handleAuthSubmit}
         />
       )}
@@ -1243,43 +1256,98 @@ function RecognitionPanel({ classifying, stage, extractedText, type, error, visu
   );
 }
 
-function AuthModal({ actionLabel, onClose, onSubmit }) {
+function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   const [mode, setMode] = useState('register');
+  const [method, setMethod] = useState('password');
   const [form, setForm] = useState({
     nickName: '',
-    contact: '',
-    password: ''
+    email: '',
+    password: '',
+    code: ''
   });
   const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
     setError('');
+    setStatus('');
   }
 
-  function submit(event) {
+  function normalizeEmail() {
+    const raw = form.email.trim().toLowerCase();
+    if (!raw) return '';
+    return raw.includes('@') ? raw : `${raw}@shanghaitech.edu.cn`;
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setMethod('password');
+    setError('');
+    setStatus('');
+  }
+
+  async function sendCode() {
+    const email = normalizeEmail();
+    if (!email || !email.endsWith('@shanghaitech.edu.cn')) {
+      setError('请使用上科大邮箱：name@shanghaitech.edu.cn');
+      return;
+    }
+    setSendingCode(true);
+    setError('');
+    setStatus('');
+    try {
+      await onSendCode(email, mode === 'register' ? 'register' : 'login');
+      setForm((current) => ({ ...current, email }));
+      setStatus('验证码已发送，请查收上科大邮箱');
+    } catch (sendError) {
+      setError(sendError?.message || '验证码发送失败');
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
+  async function submit(event) {
     event.preventDefault();
-    const contact = form.contact.trim();
+    const email = normalizeEmail();
     const nickName = form.nickName.trim();
-    if (!contact) {
-      setError('请填写上科大邮箱或联系方式');
+    if (!email || !email.endsWith('@shanghaitech.edu.cn')) {
+      setError('请使用上科大邮箱：name@shanghaitech.edu.cn');
       return;
     }
     if (mode === 'register' && !nickName) {
       setError('请填写昵称');
       return;
     }
-    if (!form.password.trim()) {
-      setError('请填写密码');
+    if ((mode === 'register' || method === 'password') && form.password.trim().length < 6) {
+      setError('密码至少需要 6 位');
       return;
     }
-    onSubmit({
-      id: `user_${Date.now()}`,
-      nickName: nickName || contact.split('@')[0] || '网页用户',
-      contact,
-      createdAt: new Date().toISOString()
-    });
+    if ((mode === 'register' || method === 'code') && !/^\d{6}$/.test(form.code.trim())) {
+      setError('请填写 6 位邮箱验证码');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await onSubmit({
+        mode,
+        method,
+        nickName: nickName || email.split('@')[0] || '网页用户',
+        email,
+        password: form.password.trim(),
+        code: form.code.trim()
+      });
+    } catch (submitError) {
+      setError(submitError?.message || '登录失败，请稍后再试');
+    } finally {
+      setSubmitting(false);
+    }
   }
+
+  const needsCode = mode === 'register' || method === 'code';
 
   return (
     <div className="auth-backdrop" role="dialog" aria-modal="true" aria-label="登录或注册">
@@ -1287,16 +1355,23 @@ function AuthModal({ actionLabel, onClose, onSubmit }) {
         <div className="auth-head">
           <div>
             <span className="auth-kicker">{actionLabel}</span>
-            <h2>{mode === 'register' ? '先注册一个校内账号' : '登录后继续'}</h2>
-            <p>只在发布、认领或提交线索时需要登录。</p>
+            <h2>{mode === 'register' ? '注册上科大账号' : '登录后继续'}</h2>
+            <p>仅支持上科大邮箱，发布、认领和提交线索会同步到云端。</p>
           </div>
           <button className="auth-close" type="button" aria-label="关闭" onClick={onClose}>×</button>
         </div>
 
         <div className="auth-switch" aria-label="登录注册切换">
-          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册</button>
-          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>登录</button>
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
+          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
         </div>
+
+        {mode === 'login' && (
+          <div className="auth-method" aria-label="登录方式">
+            <button type="button" className={method === 'password' ? 'active' : ''} onClick={() => setMethod('password')}>密码登录</button>
+            <button type="button" className={method === 'code' ? 'active' : ''} onClick={() => setMethod('code')}>验证码登录</button>
+          </div>
+        )}
 
         {mode === 'register' && (
           <label className="auth-field">
@@ -1306,21 +1381,34 @@ function AuthModal({ actionLabel, onClose, onSubmit }) {
         )}
 
         <label className="auth-field">
-          <span>联系方式</span>
-          <input value={form.contact} placeholder="name@shanghaitech.edu.cn" onChange={(event) => update('contact', event.target.value)} />
+          <span>上科大邮箱</span>
+          <input value={form.email} placeholder="name@shanghaitech.edu.cn" onChange={(event) => update('email', event.target.value)} />
         </label>
 
-        <label className="auth-field">
-          <span>密码</span>
-          <input type="password" value={form.password} placeholder="用于演示登录" onChange={(event) => update('password', event.target.value)} />
-        </label>
+        {(mode === 'register' || method === 'password') && (
+          <label className="auth-field">
+            <span>密码</span>
+            <input type="password" value={form.password} placeholder="至少 6 位" onChange={(event) => update('password', event.target.value)} />
+          </label>
+        )}
 
+        {needsCode && (
+          <label className="auth-field">
+            <span>邮箱验证码</span>
+            <div className="auth-code-row">
+              <input value={form.code} inputMode="numeric" maxLength={6} placeholder="6 位验证码" onChange={(event) => update('code', event.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <button type="button" onClick={sendCode} disabled={sendingCode}>{sendingCode ? '发送中' : '获取验证码'}</button>
+            </div>
+          </label>
+        )}
+
+        {status && <div className="auth-status">{status}</div>}
         {error && <div className="auth-error">{error}</div>}
 
-        <button className="button-primary auth-submit" type="submit">
-          {mode === 'register' ? '注册并继续' : '登录并继续'}
+        <button className="button-primary auth-submit" type="submit" disabled={submitting}>
+          {submitting ? '处理中...' : mode === 'register' ? '注册并继续' : '登录并继续'}
         </button>
-        <p className="auth-note">登录状态保存在本机浏览器，发布和评论会同步到云端公告栏。</p>
+        <p className="auth-note">验证码通过云函数发送；密码只保存加盐哈希，不会存明文。</p>
       </form>
     </div>
   );
