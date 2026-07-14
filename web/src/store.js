@@ -16,7 +16,22 @@ export function loadItems() {
 }
 
 export function saveItems(items) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ items }));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ items }));
+  } catch (error) {
+    const compactItems = items.map((item) => ({
+      ...item,
+      image: typeof item.image === 'string' && item.image.startsWith('data:')
+        ? ''
+        : item.image,
+      locationImages: []
+    }));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: compactItems }));
+    } catch (fallbackError) {
+      console.warn('Failed to persist lost-and-found items.', fallbackError || error);
+    }
+  }
 }
 
 export function loadUser() {
