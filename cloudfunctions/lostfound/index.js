@@ -367,18 +367,24 @@ function getClassifyRateKey(event = {}, context = {}) {
   return sha256(`${identity}|${source}|${context.APPID || context.ENV || ''}`);
 }
 
-function getActorId(context = {}) {
+function getWebClientActorId(event = {}) {
+  const clientId = String(event.clientId || '').trim();
+  if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(clientId)) return '';
+  return `web:${sha256(clientId)}`;
+}
+
+function getActorId(context = {}, event = {}) {
   return firstTrustedContextValue(context, [
     'OPENID',
     'UNIONID',
     'UID',
     'TCB_UUID',
     'TcbUuid'
-  ]);
+  ]) || getWebClientActorId(event);
 }
 
-function requireActorId(context = {}) {
-  const actorId = getActorId(context);
+function requireActorId(context = {}, event = {}) {
+  const actorId = getActorId(context, event);
   if (!actorId) {
     return { error: fail('无法识别当前用户，请刷新页面后重试', 'AUTH_REQUIRED') };
   }
@@ -669,7 +675,7 @@ async function createNotification(userOpenid, type, content, itemId, actorOpenid
 }
 
 async function login(event, context) {
-  const actor = requireActorId(context);
+  const actor = requireActorId(context, event);
   if (actor.error) return actor.error;
   const user = await ensureUser(actor.actorId, event.profile || {});
   return ok(user);
@@ -754,15 +760,19 @@ async function classifyImage(event, context) {
 }
 
 async function createItem(event, context) {
-  const actor = requireActorId(context);
+  const actor = requireActorId(context, event);
   if (actor.error) return actor.error;
   const payload = event.payload || {};
   const preparedImages = await prepareItemImages(payload.imageUrls || [], actor.actorId);
   if (!preparedImages.imageFileIds.length && !preparedImages.imageUrls.length && !payload.category) return fail('请上传图片或选择分类');
   let location = null;
   if (payload.locationId) {
-    const locationResult = await db.collection(COLLECTIONS.locations).doc(payload.locationId).get();
-    location = locationResult.data;
+    try {
+      const locationResult = await db.collection(COLLECTIONS.locations).doc(payload.locationId).get();
+      location = locationResult.data;
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
+    }
   }
   const customLatitude = optionalNumber(payload.latitude);
   const customLongitude = optionalNumber(payload.longitude);
@@ -833,7 +843,7 @@ async function getItemDetail(event) {
 }
 
 async function createComment(event, context) {
-  const actor = requireActorId(context);
+  const actor = requireActorId(context, event);
   if (actor.error) return actor.error;
   const content = (event.content || '').trim();
   if (!content) return fail('评论不能为空');
@@ -856,7 +866,7 @@ async function createComment(event, context) {
 }
 
 async function sendThanks(event, context) {
-  const actor = requireActorId(context);
+  const actor = requireActorId(context, event);
   if (actor.error) return actor.error;
   const itemResult = await db.collection(COLLECTIONS.items).doc(event.itemId).get();
   const item = itemResult.data;
@@ -878,7 +888,7 @@ async function sendThanks(event, context) {
 }
 
 async function updateReturnStatus(event, context, returned) {
-  const actor = requireActorId(context);
+  const actor = requireActorId(context, event);
   if (actor.error) return actor.error;
   const itemResult = await db.collection(COLLECTIONS.items).doc(event.itemId).get();
   const item = itemResult.data;
@@ -894,7 +904,7 @@ async function updateReturnStatus(event, context, returned) {
 }
 
 async function reportContent(event, context) {
-  const actor = requireActorId(context);
+  const actor = requireActorId(context, event);
   if (actor.error) return actor.error;
   const data = {
     targetType: event.targetType,
