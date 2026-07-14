@@ -129,7 +129,12 @@ async function getCloudbaseApp() {
       const config = { env: TCB_ENV_ID, region: TCB_REGION };
       if (TCB_ACCESS_KEY) config.accessKey = TCB_ACCESS_KEY;
       const app = cloudbase.init(config);
-      if (!TCB_ACCESS_KEY) await ensureCloudbaseAuth(app);
+      try {
+        await ensureCloudbaseAuth(app);
+      } catch (error) {
+        if (!TCB_ACCESS_KEY) throw error;
+        console.warn('CloudBase anonymous auth unavailable; continuing with publishable key only.', error);
+      }
       return app;
     });
   }
