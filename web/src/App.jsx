@@ -42,6 +42,34 @@ const SCHOOL_EMAIL_DOMAIN = 'shanghaitech.edu.cn';
 const EMAIL_CODE_COOLDOWN_SECONDS = 30;
 const LOCATION_DETAIL_HINT = '可补充入口、楼层、靠窗/靠路侧、附近标志物等细节。';
 
+function isStandaloneDisplay() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator?.standalone === true;
+}
+
+function pwaGuideLines() {
+  if (typeof navigator === 'undefined') {
+    return ['在浏览器菜单中选择“添加到主屏幕”或“安装应用”。'];
+  }
+  const userAgent = navigator.userAgent || '';
+  if (/MicroMessenger/i.test(userAgent)) {
+    return [
+      '点击右上角“…”菜单，先选择“在浏览器打开”。',
+      '在浏览器菜单中选择“添加到桌面”或“添加到主屏幕”。'
+    ];
+  }
+  if (/iPhone|iPad|iPod/i.test(userAgent)) {
+    return [
+      '点击底部分享按钮。',
+      '选择“添加到主屏幕”，确认名称后保存。'
+    ];
+  }
+  return [
+    '点击浏览器菜单里的“添加到主屏幕”或“安装应用”。',
+    '添加后可以从手机桌面直接打开 LockMyItem。'
+  ];
+}
+
 function locationImageHint(location) {
   return [
     `${location?.name || ''} ${location?.area || ''}`.trim(),
@@ -94,6 +122,8 @@ function App() {
   const [claimingItemId, setClaimingItemId] = useState(null);
   const [toast, setToast] = useState('');
   const [authPrompt, setAuthPrompt] = useState(null);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [showPwaGuide, setShowPwaGuide] = useState(false);
 
   useEffect(() => {
     saveItems(items);
@@ -144,6 +174,26 @@ function App() {
     const timer = window.setTimeout(() => setToast(''), 2200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+    }
+
+    function handleAppInstalled() {
+      setDeferredInstallPrompt(null);
+      setShowPwaGuide(false);
+      setToast('已添加到桌面');
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   const stats = useMemo(() => {
     const active = items.filter((item) => item.status === 'active');
@@ -312,6 +362,28 @@ function App() {
     if (pending) window.setTimeout(() => pending(user), 0);
   }
 
+  async function installDesktopApp() {
+    if (isStandaloneDisplay()) {
+      setToast('已经在桌面端模式运行');
+      return;
+    }
+
+    if (!deferredInstallPrompt) {
+      setShowPwaGuide(true);
+      return;
+    }
+
+    const promptEvent = deferredInstallPrompt;
+    setDeferredInstallPrompt(null);
+    try {
+      promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      setToast(choice?.outcome === 'accepted' ? '正在添加到桌面' : '已取消添加到桌面');
+    } catch (error) {
+      setShowPwaGuide(true);
+    }
+  }
+
   function logout() {
     clearUser();
     setCurrentUser(null);
@@ -393,6 +465,7 @@ function App() {
           total={stats.found}
           onPublish={() => openPublish('found')}
           onOpen={openDetail}
+          onInstallDesktop={installDesktopApp}
         />
       )}
 
@@ -404,6 +477,7 @@ function App() {
           total={stats.lost}
           onPublish={() => openPublish('lost')}
           onOpen={openDetail}
+          onInstallDesktop={installDesktopApp}
         />
       )}
 
@@ -468,12 +542,13 @@ function App() {
           onSubmit={handleAuthSubmit}
         />
       )}
+      {showPwaGuide && <PwaInstallGuide onClose={() => setShowPwaGuide(false)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
 }
 
-function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish, onOpen }) {
+function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish, onOpen, onInstallDesktop }) {
   const [semanticQuery, setSemanticQuery] = useState('');
   const baseList = filterItems(items, 'found', 'active', activeCategory);
   const list = semanticSearchItems(baseList, semanticQuery);
@@ -484,6 +559,7 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
           <h1 className="app-title">校园公告板</h1>
           <p className="app-subtitle">上海科技大学 · 失物招领平台</p>
         </div>
+        <PwaInstallButton tone="found" onClick={onInstallDesktop} />
       </div>
 
       <button className="notice-banner" type="button" onClick={onPublish}>
@@ -530,7 +606,7 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
   );
 }
 
-function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, onOpen }) {
+function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, onOpen, onInstallDesktop }) {
   const [semanticQuery, setSemanticQuery] = useState('');
   const baseList = filterItems(items, 'lost', 'active', activeCategory);
   const list = semanticSearchItems(baseList, semanticQuery);
@@ -541,6 +617,7 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
           <h1 className="app-title">寻物登记</h1>
           <p className="app-subtitle">丢失物品后，先登记线索再等待匹配提醒</p>
         </div>
+        <PwaInstallButton tone="lost" onClick={onInstallDesktop} />
       </div>
 
       <button className="notice-banner lost" type="button" onClick={onPublish}>
@@ -1262,6 +1339,37 @@ function pointsAttr(points) {
 function shortLocationLabel(name) {
   const chars = Array.from(name || '');
   return chars.length > 8 ? `${chars.slice(0, 8).join('')}…` : chars.join('');
+}
+
+function PwaInstallButton({ tone, onClick }) {
+  return (
+    <button className={`desktop-install ${tone}`} type="button" onClick={onClick} aria-label="添加到手机桌面">
+      <span className="desktop-install-icon">⌂</span>
+      <span>桌面端</span>
+    </button>
+  );
+}
+
+function PwaInstallGuide({ onClose }) {
+  const lines = pwaGuideLines();
+  return (
+    <div className="pwa-backdrop" role="dialog" aria-modal="true" aria-label="添加到桌面">
+      <div className="pwa-panel">
+        <div className="pwa-head">
+          <div>
+            <span className="pwa-kicker">桌面端</span>
+            <h2>添加到手机桌面</h2>
+            <p>添加后可以像 App 一样从桌面打开，访问更快，也更适合日常使用。</p>
+          </div>
+          <button className="pwa-close" type="button" aria-label="关闭" onClick={onClose}>×</button>
+        </div>
+        <ol className="pwa-steps">
+          {lines.map((line) => <li key={line}>{line}</li>)}
+        </ol>
+        <button className="button-primary pwa-confirm" type="button" onClick={onClose}>我知道了</button>
+      </div>
+    </div>
+  );
 }
 
 function PublishFab({ tone, label, onClick }) {

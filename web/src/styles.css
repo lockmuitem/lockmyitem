@@ -96,7 +96,42 @@ p {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 10px;
   margin: 5px 6px 12px;
+}
+
+.board-head > div {
+  min-width: 0;
+}
+
+.desktop-install {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  margin-top: 2px;
+  padding: 0 9px;
+  color: var(--notice-green);
+  background: #E8F4EF;
+  border: 1px solid #C6E0D6;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(23, 42, 51, 0.08);
+}
+
+.desktop-install.lost {
+  color: var(--lost-blue);
+  background: #EEF4FF;
+  border-color: #C9D8F2;
+}
+
+.desktop-install-icon {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .app-title,
@@ -1976,6 +2011,107 @@ p {
   font-size: 12px;
   line-height: 1.4;
   text-align: center;
+}
+
+.pwa-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px 12px;
+  background: rgba(23, 42, 51, 0.38);
+}
+
+.pwa-panel {
+  width: 100%;
+  max-width: 406px;
+  padding: 16px;
+  background: #FFFDF7;
+  border: 1px solid #E9E1D4;
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(23, 42, 51, 0.24);
+}
+
+.pwa-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pwa-kicker {
+  display: block;
+  margin-bottom: 6px;
+  color: #7A5A24;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pwa-head h2 {
+  color: #102330;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.16;
+}
+
+.pwa-head p {
+  margin-top: 7px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pwa-close {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: #667085;
+  background: #F1F3EF;
+  border-radius: 50%;
+  font-size: 23px;
+  line-height: 30px;
+}
+
+.pwa-steps {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 15px;
+  padding: 0;
+  counter-reset: pwa-step;
+}
+
+.pwa-steps li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: #40545C;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+  list-style: none;
+}
+
+.pwa-steps li::before {
+  counter-increment: pwa-step;
+  content: counter(pwa-step);
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  background: var(--notice-green);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pwa-confirm {
+  width: 100%;
+  border-radius: 12px;
+  font-weight: 900;
 }
 
 .found-page,
