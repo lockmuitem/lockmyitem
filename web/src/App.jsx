@@ -39,6 +39,7 @@ const tabItems = [
 ];
 
 const SCHOOL_EMAIL_DOMAIN = 'shanghaitech.edu.cn';
+const EMAIL_CODE_COOLDOWN_SECONDS = 30;
 
 function App() {
   const [items, setItems] = useState(() => loadItems());
@@ -1263,7 +1264,16 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [sendingCode, setSendingCode] = useState(false);
+  const [codeCooldown, setCodeCooldown] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (codeCooldown <= 0) return undefined;
+    const timer = window.setTimeout(() => {
+      setCodeCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [codeCooldown]);
 
   function update(field, value) {
     const nextValue = field === 'email' ? normalizeEmailPrefix(value) : value;
@@ -1299,6 +1309,7 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   }
 
   async function sendCode() {
+    if (codeCooldown > 0) return;
     const email = normalizeEmail();
     if (!email) {
       setError('请填写上科大邮箱前缀');
@@ -1310,6 +1321,7 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
     try {
       await onSendCode(email, mode === 'register' ? 'register' : 'login');
       setForm((current) => ({ ...current, email: email.split('@')[0] }));
+      setCodeCooldown(EMAIL_CODE_COOLDOWN_SECONDS);
       setStatus('验证码已发送，请查收上科大邮箱');
     } catch (sendError) {
       setError(sendError?.message || '验证码发送失败');
@@ -1357,6 +1369,11 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   }
 
   const needsCode = mode === 'register' || method === 'code';
+  const codeButtonText = sendingCode
+    ? '发送中'
+    : codeCooldown > 0
+      ? `${codeCooldown}s 后重发`
+      : '获取验证码';
 
   return (
     <div className="auth-backdrop" role="dialog" aria-modal="true" aria-label="登录或注册">
@@ -1420,7 +1437,7 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
             <span>邮箱验证码</span>
             <div className="auth-code-row">
               <input value={form.code} inputMode="numeric" maxLength={6} placeholder="6 位验证码" onChange={(event) => update('code', event.target.value.replace(/\D/g, '').slice(0, 6))} />
-              <button type="button" onClick={sendCode} disabled={sendingCode}>{sendingCode ? '发送中' : '获取验证码'}</button>
+              <button type="button" onClick={sendCode} disabled={sendingCode || codeCooldown > 0}>{codeButtonText}</button>
             </div>
           </label>
         )}

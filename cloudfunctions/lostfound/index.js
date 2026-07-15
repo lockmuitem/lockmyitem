@@ -66,7 +66,7 @@ const AUTH_CONFIG = {
   emailDomain: (process.env.AUTH_EMAIL_DOMAIN || 'shanghaitech.edu.cn').toLowerCase(),
   tokenTtlMs: positiveNumber(process.env.AUTH_TOKEN_TTL_MS, 30 * 24 * 60 * 60 * 1000),
   codeTtlMs: positiveNumber(process.env.AUTH_CODE_TTL_MS, 10 * 60 * 1000),
-  codeCooldownMs: positiveNumber(process.env.AUTH_CODE_COOLDOWN_MS, 60 * 1000),
+  codeCooldownMs: positiveNumber(process.env.AUTH_CODE_COOLDOWN_MS, 30 * 1000),
   maxCodeAttempts: positiveNumber(process.env.AUTH_CODE_MAX_ATTEMPTS, 5),
   passwordIterations: positiveNumber(process.env.AUTH_PASSWORD_ITERATIONS, 120000),
   smtpHost: process.env.SMTP_HOST || '',
