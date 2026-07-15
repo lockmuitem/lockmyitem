@@ -137,6 +137,10 @@ function App() {
     setAuthPrompt({ actionLabel, onAuthed, onCancel });
   }
 
+  function openAuthPanel() {
+    setAuthPrompt({ actionLabel: '登录/注册' });
+  }
+
   function openPublish(type = 'found') {
     requireAuth(type === 'lost' ? '发布寻物' : '发布招领', () => {
       setSelectedId(null);
@@ -377,6 +381,7 @@ function App() {
           onOpen={openDetail}
           onMarkReturned={markReturned}
           onUndoReturned={undoReturned}
+          onLogin={openAuthPanel}
           onLogout={logout}
         />
       )}
@@ -571,13 +576,10 @@ function ReturnedPage({ items, total, onOpen }) {
   );
 }
 
-function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogout }) {
-  const [profile, setProfile] = useState({
-    nickName: currentUser?.nickName || '微信用户',
-    emailPrefix: currentUser?.contact ? currentUser.contact.replace('@shanghaitech.edu.cn', '') : ''
-  });
+function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogin, onLogout }) {
   const shownItems = items.slice(0, 8);
-  const displayName = currentUser?.nickName || profile.nickName || '微信用户';
+  const displayName = currentUser?.nickName || '未登录';
+  const accountEmail = currentUser?.email || currentUser?.contact || '';
   const avatarText = displayName.slice(0, 1);
 
   return (
@@ -585,14 +587,20 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
       <div className="profile-hero">
         <div className="hero-topline">
           <span className="hero-label">个人中心</span>
-          <span className="hero-state">校内互助账号</span>
+          <span className="hero-state">{currentUser ? '已登录' : '未登录'}</span>
         </div>
         <div className="profile-main">
           <div className="avatar">{avatarText}</div>
           <div className="identity">
             <h1 className="name">{displayName}</h1>
-            <p className="subtitle">{currentUser ? currentUser.contact : '发布或认领时再登录'}</p>
+            <p className="subtitle">{currentUser ? accountEmail : '发布或认领时再登录'}</p>
           </div>
+        </div>
+        <div className="profile-account-grid">
+          <span>昵称</span>
+          <strong>{displayName}</strong>
+          <span>上科大邮箱</span>
+          <strong>{accountEmail || '登录后显示'}</strong>
         </div>
         <div className="hero-badge">
           <span>ShanghaiTech Lost &amp; Found</span>
@@ -609,30 +617,20 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
       <div className="card profile-form">
         <div className="section-head">
           <div>
-            <span className="section-kicker">账号资料</span>
-            <h2 className="form-title">注册资料</h2>
+            <span className="section-kicker">账号操作</span>
+            <h2 className="form-title">{currentUser ? '登录管理' : '登录后使用完整功能'}</h2>
           </div>
-          <span className="section-note">用于找回提醒</span>
+          <span className="section-note">{currentUser ? '当前账号' : '校内邮箱'}</span>
         </div>
-        <input
-          className="profile-input"
-          placeholder="昵称"
-          value={profile.nickName}
-          onChange={(event) => setProfile((current) => ({ ...current, nickName: event.target.value }))}
-        />
-        <div className="email-edit">
-          <input
-            className="email-prefix"
-            placeholder="邮箱前缀"
-            type="text"
-            value={profile.emailPrefix}
-            onChange={(event) => setProfile((current) => ({ ...current, emailPrefix: event.target.value }))}
-          />
-          <span className="email-domain">@shanghaitech.edu.cn</span>
-        </div>
-        <button className="button-primary save-profile" type="button">保存资料</button>
-        {currentUser && (
-          <button className="button-secondary logout-button" type="button" onClick={onLogout}>退出登录</button>
+        <p className="account-action-copy">
+          {currentUser
+            ? '退出后仍可浏览公告，发布、认领和评论时需要重新登录。'
+            : '使用上科大邮箱注册或登录后，可以发布、认领、评论并同步到云端。'}
+        </p>
+        {currentUser ? (
+          <button className="button-secondary account-auth-button" type="button" onClick={onLogout}>退出登录</button>
+        ) : (
+          <button className="button-primary account-auth-button" type="button" onClick={onLogin}>登录/注册</button>
         )}
       </div>
 
