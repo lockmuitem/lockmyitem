@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { campusMapImage, campusMapImageBoundaries, campusMapMeta, categories, locations } from './data.js';
+import { campusMapImage, campusMapImageBoundaries, campusMapMeta, categories, locationAliases, locations } from './data.js';
 import {
   claimCloudItem,
   clearUser,
@@ -1424,7 +1424,12 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, onCl
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const matches = findPotentialMatches(item, items);
-  const location = getLocation(item.locationId);
+  const location = itemLocation(item) || {
+    name: '未选择地点',
+    area: '',
+    guide: item.locationDetail || '',
+    mapDescription: item.locationDetail || ''
+  };
 
   async function submitComment(event) {
     event.preventDefault();
@@ -1641,7 +1646,31 @@ function filterItems(items, type, status, category) {
 }
 
 function locationText(item) {
-  return getLocation(item.locationId)?.name || '';
+  return itemLocation(item)?.name || '';
+}
+
+function itemLocation(item = {}) {
+  const known = knownLocationById(item.locationId);
+  if (known) return known;
+
+  const name = String(item.locationName || '').trim();
+  if (!name) return null;
+
+  const guide = item.locationGuide || item.locationDetail || '';
+  return {
+    id: item.locationId || '',
+    name,
+    area: item.locationArea || '',
+    guide,
+    mapDescription: guide
+  };
+}
+
+function knownLocationById(locationId) {
+  const id = String(locationId || '').trim();
+  if (!id) return null;
+  const resolvedId = locationAliases[id] || id;
+  return locations.find((location) => location.id === resolvedId) || null;
 }
 
 function itemMeta(item) {

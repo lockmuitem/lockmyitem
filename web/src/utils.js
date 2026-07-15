@@ -49,8 +49,30 @@ export function getLocation(locationId) {
   return locations.find((location) => location.id === resolvedId) || locations[0];
 }
 
+function itemLocation(item = {}) {
+  const id = String(item.locationId || '').trim();
+  const resolvedId = locationAliases[id] || id;
+  const known = id ? locations.find((location) => location.id === resolvedId) : null;
+  if (known) return known;
+
+  const name = String(item.locationName || '').trim();
+  if (!name) return null;
+
+  return {
+    name,
+    area: item.locationArea || '',
+    guide: item.locationGuide || item.locationDetail || '',
+    searchableText: [
+      item.locationName,
+      item.locationArea,
+      item.locationGuide,
+      item.locationDetail
+    ].filter(Boolean).join(' ')
+  };
+}
+
 function searchableText(item = {}) {
-  const location = getLocation(item.locationId);
+  const location = itemLocation(item);
   return [
     item.title,
     item.description,
