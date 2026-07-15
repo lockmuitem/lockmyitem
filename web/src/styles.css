@@ -1323,6 +1323,47 @@ p {
   margin: 0;
 }
 
+.location-confirm {
+  margin-top: 8px;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(36, 91, 107, 0.16);
+  border-radius: 8px;
+}
+
+.location-confirm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 19px;
+  color: #344054;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.location-confirm-row span:first-child {
+  flex: 0 0 auto;
+  color: #667085;
+  font-weight: 700;
+}
+
+.location-confirm-row strong {
+  min-width: 0;
+  flex: 1;
+  color: var(--ink);
+  font-weight: 800;
+  word-break: break-all;
+}
+
+.location-confirm-note {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 .match-panel {
   margin: 11px 0 4px;
   padding: 9px;
@@ -2449,6 +2490,16 @@ p {
   margin-bottom: 0;
 }
 
+.publish-page .location-confirm {
+  margin-top: 8px;
+  border-color: rgba(31, 107, 93, 0.16);
+  border-radius: 14px;
+}
+
+.publish-page .location-confirm-note {
+  color: var(--notice-green);
+}
+
 .campus-map-shell {
   position: relative;
   width: 100%;
@@ -2558,6 +2609,31 @@ p {
   stroke-linejoin: round;
   stroke-width: 10;
   text-anchor: middle;
+}
+
+.location-detail-wrap {
+  position: relative;
+  margin-top: 8px;
+}
+
+.location-detail-field {
+  min-height: 84px;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 9px;
+  padding-bottom: 34px;
+  line-height: 1.45;
+}
+
+.location-detail-placeholder {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  left: 14px;
+  color: #98A2B3;
+  font-size: 12.5px;
+  line-height: 1.45;
+  pointer-events: none;
 }
 
 .location-image-section {

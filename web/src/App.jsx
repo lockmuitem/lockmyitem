@@ -40,6 +40,7 @@ const tabItems = [
 
 const SCHOOL_EMAIL_DOMAIN = 'shanghaitech.edu.cn';
 const EMAIL_CODE_COOLDOWN_SECONDS = 30;
+const LOCATION_DETAIL_HINT = '可补充入口、楼层、靠窗/靠路侧、附近标志物等细节。';
 
 function locationImageHint(location) {
   return [
@@ -1002,6 +1003,27 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
               ))}
             </select>
             <CampusLocationMap selectedId={form.locationId} onSelect={selectLocation} />
+            <div className="location-confirm">
+              <div className="location-confirm-row">
+                <span>已选择：</span>
+                <strong>{selectedLocation.name}</strong>
+              </div>
+              <div className="location-confirm-row">
+                <span>地点区域：</span>
+                <strong>{selectedLocation.area}</strong>
+              </div>
+            </div>
+            <div className="location-detail-wrap">
+              <textarea
+                className="field textarea location-detail-field"
+                aria-label="补充具体方位"
+                value={form.locationDetail}
+                onChange={(event) => update('locationDetail', event.target.value)}
+              />
+              {!form.locationDetail.trim() && (
+                <span className="location-detail-placeholder">{LOCATION_DETAIL_HINT}</span>
+              )}
+            </div>
             <div className="location-image-section">
               {(form.locationImages || []).length > 0 && (
                 <div className="location-image-grid">
