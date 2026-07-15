@@ -962,12 +962,12 @@ async function loginWithEmailPassword(event) {
 async function loginWithEmailCode(event) {
   const email = normalizeShanghaiTechEmail(event.email);
   if (!email) return fail(`请使用 @${AUTH_CONFIG.emailDomain} 邮箱`, 'INVALID_EMAIL');
+  const user = await getEmailUser(email);
+  if (!user) {
+    return fail('该邮箱尚未注册，请先完成注册', 'EMAIL_NOT_REGISTERED');
+  }
   const codeError = await verifyEmailCode(email, event.code);
   if (codeError) return codeError;
-  let user = await getEmailUser(email);
-  if (!user) {
-    user = await createEmailUser({ email, nickName: event.nickName });
-  }
   const token = createAuthToken(user);
   return ok(publicEmailUser(user, token));
 }

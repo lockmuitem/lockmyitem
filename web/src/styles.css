@@ -1874,6 +1874,18 @@ p {
   border-color: #B7D9CC;
 }
 
+.auth-inline-note {
+  margin: -2px 0 12px;
+  padding: 8px 10px;
+  color: #4F635D;
+  background: #F6FAF7;
+  border: 1px solid #E0ECE4;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .auth-field {
   display: block;
   margin-bottom: 10px;

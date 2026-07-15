@@ -1373,6 +1373,14 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
           </div>
         )}
 
+        {mode === 'login' && method === 'code' && (
+          <p className="auth-inline-note">验证码登录仅限已注册邮箱。还没有账号请先切换到“注册”。</p>
+        )}
+
+        {mode === 'register' && (
+          <p className="auth-inline-note">注册需要邮箱验证码，并设置以后登录使用的密码。</p>
+        )}
+
         {mode === 'register' && (
           <label className="auth-field">
             <span>昵称</span>
