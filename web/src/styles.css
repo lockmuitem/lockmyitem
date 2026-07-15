@@ -818,35 +818,6 @@ p {
   white-space: nowrap;
 }
 
-.profile-account-grid {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 7px 10px;
-  margin-top: 13px;
-  padding: 10px;
-  background: rgba(248, 251, 248, 0.82);
-  border: 1px solid #e3eee9;
-  border-radius: 8px;
-}
-
-.profile-account-grid span {
-  color: #718082;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.profile-account-grid strong {
-  min-width: 0;
-  overflow: hidden;
-  color: #18323a;
-  font-size: 12.5px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .hero-badge {
   position: relative;
   z-index: 1;

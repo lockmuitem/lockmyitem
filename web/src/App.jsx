@@ -596,12 +596,6 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
             <p className="subtitle">{currentUser ? accountEmail : '发布或认领时再登录'}</p>
           </div>
         </div>
-        <div className="profile-account-grid">
-          <span>昵称</span>
-          <strong>{displayName}</strong>
-          <span>上科大邮箱</span>
-          <strong>{accountEmail || '登录后显示'}</strong>
-        </div>
         <div className="hero-badge">
           <span>ShanghaiTech Lost &amp; Found</span>
           <span>找回、归还、提醒都在这里</span>
