@@ -203,7 +203,22 @@ function normalizeHunyuanResult(result = {}) {
   };
 }
 
-function buildVisionPrompt(hint = '') {
+function buildVisionPrompt(hint = '', purpose = 'item') {
+  if (purpose === 'locationDetail') {
+    return [
+      '你是上海科技大学校园失物招领系统的方位图片识别助手。',
+      '请结合图片和用户补充描述，只提取可帮助同学定位物品所在位置的空间线索。',
+      '重点描述入口、楼层、门牌、桌椅、楼梯、电梯、靠窗/靠路侧、附近标志物等信息。',
+      '不要重复地点名称和地点区域，不要描述领取流程，不要提到评论区或联系发布人。',
+      '必须只返回 JSON，不要 Markdown，不要解释。',
+      'JSON 字段：title, description, category, tags, colors, accessories, objects。',
+      'category 固定返回 其他。',
+      'description 必须是一句简体中文方位描述，适合直接填入“补充具体方位”输入框。',
+      'tags/objects 返回可用于定位的简短中文词语。',
+      `用户补充描述：${hint || '无'}`
+    ].join('\n');
+  }
+
   return [
     '你是上海科技大学校园失物招领系统的图像识别助手。',
     '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
@@ -279,7 +294,7 @@ export default async function handler(req, res) {
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: imageUrl } },
-              { type: 'text', text: buildVisionPrompt(body.hint) }
+              { type: 'text', text: buildVisionPrompt(body.hint, body.purpose || 'item') }
             ]
           }
         ],

@@ -193,7 +193,7 @@ async function ensureCloudbaseAuth(app) {
   }
 }
 
-async function classifyViaCloudbase(imageDataUrl, hint) {
+async function classifyViaCloudbase(imageDataUrl, hint, options = {}) {
   if (!TCB_ENABLED) return null;
 
   const app = await getCloudbaseApp();
@@ -206,7 +206,8 @@ async function classifyViaCloudbase(imageDataUrl, hint) {
         imageBase64: imageDataUrl.replace(/^data:[^,]+,/, ''),
         mimeType: 'image/jpeg',
         clientId: getClientId(),
-        hint
+        hint,
+        purpose: options.purpose || 'item'
       }
     }),
     30000,
@@ -219,7 +220,7 @@ async function classifyViaCloudbase(imageDataUrl, hint) {
   return normalizeRemoteData(body.data);
 }
 
-async function classifyViaHunyuan(imageDataUrl, hint) {
+async function classifyViaHunyuan(imageDataUrl, hint, options = {}) {
   if (!REMOTE_MODEL_ENDPOINT || !REMOTE_MODEL_FALLBACK_ENABLED) {
     return null;
   }
@@ -230,7 +231,8 @@ async function classifyViaHunyuan(imageDataUrl, hint) {
     body: JSON.stringify({
       imageBase64: imageDataUrl.replace(/^data:[^,]+,/, ''),
       mimeType: 'image/jpeg',
-      hint
+      hint,
+      purpose: options.purpose || 'item'
     })
   });
   const body = await response.json().catch(() => ({}));
@@ -240,7 +242,7 @@ async function classifyViaHunyuan(imageDataUrl, hint) {
   return normalizeRemoteData(body.ok ? body.data : body);
 }
 
-export async function recognizeImageFile(file, hint = '') {
+export async function recognizeImageFile(file, hint = '', options = {}) {
   const dataUrl = await fileToDataUrl(file);
   const compressed = await compressDataUrl(dataUrl, 960, 0.72);
   const textHint = `${hint || ''} ${file?.name || ''}`.trim();
@@ -248,14 +250,14 @@ export async function recognizeImageFile(file, hint = '') {
   let data = null;
 
   try {
-    data = await classifyViaCloudbase(compressed, textHint);
+    data = await classifyViaCloudbase(compressed, textHint, options);
   } catch (error) {
     errors.push(`小程序云函数混元识别失败：${readableError(error)}`);
   }
 
   if (!data) {
     try {
-      data = await classifyViaHunyuan(compressed, textHint);
+      data = await classifyViaHunyuan(compressed, textHint, options);
     } catch (error) {
       errors.push(`后端混元代理识别失败：${readableError(error)}`);
     }

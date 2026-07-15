@@ -872,7 +872,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
     }
 
     try {
-      const result = await recognizeImageFile(files[0], locationImageHint(selectedLocation));
+      const result = await recognizeImageFile(files[0], locationImageHint(selectedLocation), { purpose: 'locationDetail' });
       const detail = locationDetailFromRecognition(result.data || {}, selectedLocation);
       if (!detail) throw new Error('没有识别到可用于定位的空间线索');
       const shouldFillDetail = !form.locationDetail.trim();
