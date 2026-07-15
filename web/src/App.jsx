@@ -42,9 +42,25 @@ const SCHOOL_EMAIL_DOMAIN = 'shanghaitech.edu.cn';
 const EMAIL_CODE_COOLDOWN_SECONDS = 30;
 const LOCATION_DETAIL_HINT = '可补充入口、楼层、靠窗/靠路侧、附近标志物等细节。';
 
-function defaultLocationDetail(location) {
-  const raw = String(location?.mapDescription || location?.guide || '').trim();
-  if (!raw) return LOCATION_DETAIL_HINT;
+function locationImageHint(location) {
+  return [
+    `${location?.name || ''} ${location?.area || ''}`.trim(),
+    '这是失物招领发布页的方位补充图片。',
+    '请只描述图片中可帮助定位的空间线索，例如入口、楼层、门牌、靠窗/靠路侧、桌椅、楼梯、电梯、附近标志物。',
+    '不要重复地点名称和地点区域，用一句简体中文概括。'
+  ].filter(Boolean).join(' ');
+}
+
+function locationDetailFromRecognition(data = {}, location) {
+  const source = [
+    data.visualDescription,
+    data.description,
+    data.caption,
+    data.title,
+    ...(data.tags || []),
+    ...(data.semanticTags || [])
+  ].filter(Boolean).join('，').trim();
+  if (!source) return '';
 
   const prefixes = [
     `${location.name}，${location.area}；`,
@@ -56,11 +72,13 @@ function defaultLocationDetail(location) {
     location.name
   ].filter(Boolean);
 
-  const matchedPrefix = prefixes.find((prefix) => raw.startsWith(prefix));
-  const text = (matchedPrefix ? raw.slice(matchedPrefix.length) : raw)
+  const matchedPrefix = prefixes.find((prefix) => source.startsWith(prefix));
+  const text = (matchedPrefix ? source.slice(matchedPrefix.length) : source)
+    .replace(/^(图片中|画面中|图中|这是一张|这张图片显示|图片显示|可以看到)/, '')
     .replace(/^[，,；;。、\s]+/, '')
     .trim();
-  return text || LOCATION_DETAIL_HINT;
+  if (!text || ['其他', '待识别物品', '待确认'].includes(text)) return '';
+  return /[。.!！?？]$/.test(text) ? text : `${text}。`;
 }
 
 function App() {
@@ -709,7 +727,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
     visualDescription: initialDraft?.visualDescription || '',
     rawPredictions: [...(initialDraft?.rawPredictions || [])],
     locationId: initialDraft?.locationId || defaultLocation.id,
-    locationDetail: initialDraft?.locationDetail || defaultLocationDetail(defaultLocation),
+    locationDetail: initialDraft?.locationDetail || '',
     locationImages: [...(initialDraft?.locationImages || [])],
     image: initialDraft?.image || '',
     ownerName: currentUser?.nickName || initialDraft?.ownerName || '网页用户'
@@ -719,6 +737,8 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
   const [aiProcessStage, setAiProcessStage] = useState('idle');
   const [aiExtractedText, setAiExtractedText] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
+  const [locationImageStatus, setLocationImageStatus] = useState('');
+  const [locationImageMessage, setLocationImageMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -769,7 +789,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
       locationId,
       locationDetail: current.locationId === locationId
         ? current.locationDetail
-        : defaultLocationDetail(location)
+        : ''
     }));
   }
 
@@ -837,11 +857,35 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
   async function addLocationImages(fileList) {
     const files = Array.from(fileList || []).filter((file) => file.type?.startsWith('image/'));
     if (!files.length) return;
-    const images = await Promise.all(files.slice(0, 6).map(readLocationImageFile));
-    setForm((current) => ({
-      ...current,
-      locationImages: [...(current.locationImages || []), ...images].slice(0, 6)
-    }));
+    setLocationImageStatus('loading');
+    setLocationImageMessage('正在根据方位图片生成方位描述');
+    try {
+      const images = await Promise.all(files.slice(0, 6).map(readLocationImageFile));
+      setForm((current) => ({
+        ...current,
+        locationImages: [...(current.locationImages || []), ...images].slice(0, 6)
+      }));
+    } catch {
+      setLocationImageStatus('error');
+      setLocationImageMessage('方位图片读取失败，请重新选择图片');
+      return;
+    }
+
+    try {
+      const result = await recognizeImageFile(files[0], locationImageHint(selectedLocation));
+      const detail = locationDetailFromRecognition(result.data || {}, selectedLocation);
+      if (!detail) throw new Error('没有识别到可用于定位的空间线索');
+      const shouldFillDetail = !form.locationDetail.trim();
+      setForm((current) => ({
+        ...current,
+        locationDetail: current.locationDetail.trim() ? current.locationDetail : detail
+      }));
+      setLocationImageStatus('done');
+      setLocationImageMessage(shouldFillDetail ? '已根据方位图片生成方位描述' : '已识别方位图片；保留你已填写的方位描述');
+    } catch (error) {
+      setLocationImageStatus('error');
+      setLocationImageMessage(`方位图片识别失败：${error.message || '可手动填写具体方位'}`);
+    }
   }
 
   function removeLocationImage(index) {
@@ -969,12 +1013,17 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
                 <strong>{selectedLocation.area}</strong>
               </div>
             </div>
-            <textarea
-              className="field textarea location-detail-field"
-              placeholder="补充具体方位，如北侧长椅、二楼靠窗、入口右侧"
-              value={form.locationDetail}
-              onChange={(event) => update('locationDetail', event.target.value)}
-            />
+            <div className="location-detail-wrap">
+              <textarea
+                className="field textarea location-detail-field"
+                aria-label="补充具体方位"
+                value={form.locationDetail}
+                onChange={(event) => update('locationDetail', event.target.value)}
+              />
+              {!form.locationDetail.trim() && (
+                <span className="location-detail-placeholder">{LOCATION_DETAIL_HINT}</span>
+              )}
+            </div>
             <div className="location-image-section">
               {(form.locationImages || []).length > 0 && (
                 <div className="location-image-grid">
@@ -999,6 +1048,9 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
                   }}
                 />
               </label>
+              {locationImageMessage && (
+                <p className={`location-image-status ${locationImageStatus}`}>{locationImageMessage}</p>
+              )}
             </div>
           </div>
         </div>

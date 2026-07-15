@@ -2611,12 +2611,29 @@ p {
   text-anchor: middle;
 }
 
-.location-detail-field {
-  min-height: 66px;
+.location-detail-wrap {
+  position: relative;
   margin-top: 8px;
+}
+
+.location-detail-field {
+  min-height: 84px;
+  margin-top: 0;
   margin-bottom: 0;
   padding-top: 9px;
+  padding-bottom: 34px;
   line-height: 1.45;
+}
+
+.location-detail-placeholder {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  left: 14px;
+  color: #98A2B3;
+  font-size: 12.5px;
+  line-height: 1.45;
+  pointer-events: none;
 }
 
 .location-image-section {
@@ -2683,6 +2700,35 @@ p {
 .location-image-add-mark {
   font-size: 18px;
   line-height: 1;
+}
+
+.location-image-status {
+  margin: 7px 0 0;
+  padding: 7px 9px;
+  color: #475467;
+  background: #ffffff;
+  border: 1px solid rgba(31, 107, 93, 0.12);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.location-image-status.loading {
+  color: #7A4B00;
+  background: #FFF8E6;
+  border-color: #F6D58F;
+}
+
+.location-image-status.done {
+  color: var(--notice-green);
+  background: #EFF8F4;
+  border-color: rgba(31, 107, 93, 0.16);
+}
+
+.location-image-status.error {
+  color: #B42318;
+  background: #FFF1F0;
+  border-color: #FECDCA;
 }
 
 .location-detail-note {
