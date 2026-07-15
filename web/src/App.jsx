@@ -1251,6 +1251,7 @@ function RecognitionPanel({ classifying, stage, extractedText, type, error, visu
 function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   const [mode, setMode] = useState('register');
   const [method, setMethod] = useState('password');
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     nickName: '',
     email: '',
@@ -1277,6 +1278,13 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   function switchMode(nextMode) {
     setMode(nextMode);
     setMethod('password');
+    setShowPassword(false);
+    setError('');
+    setStatus('');
+  }
+
+  function switchMethod(nextMethod) {
+    setMethod(nextMethod);
     setError('');
     setStatus('');
   }
@@ -1360,13 +1368,13 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
 
         {mode === 'login' && (
           <div className="auth-method" aria-label="登录方式">
-            <button type="button" className={method === 'password' ? 'active' : ''} onClick={() => setMethod('password')}>密码登录</button>
-            <button type="button" className={method === 'code' ? 'active' : ''} onClick={() => setMethod('code')}>验证码登录</button>
+            <button type="button" className={method === 'password' ? 'active' : ''} onClick={() => switchMethod('password')}>密码登录</button>
+            <button type="button" className={method === 'code' ? 'active' : ''} onClick={() => switchMethod('code')}>验证码登录</button>
           </div>
         )}
 
         {mode === 'login' && method === 'code' && (
-          <p className="auth-inline-note">验证码登录仅限已注册邮箱。还没有账号请先切换到“注册”。</p>
+          <p className="auth-inline-note">已注册账号可以直接用邮箱验证码登录；还没有账号请先切换到“注册”。</p>
         )}
 
         {mode === 'register' && (
@@ -1388,7 +1396,10 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
         {(mode === 'register' || method === 'password') && (
           <label className="auth-field">
             <span>密码</span>
-            <input type="password" value={form.password} placeholder="至少 6 位" onChange={(event) => update('password', event.target.value)} />
+            <div className="auth-password-row">
+              <input type={showPassword ? 'text' : 'password'} value={form.password} placeholder="至少 6 位" onChange={(event) => update('password', event.target.value)} />
+              <button type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? '隐藏' : '显示'}</button>
+            </div>
           </label>
         )}
 

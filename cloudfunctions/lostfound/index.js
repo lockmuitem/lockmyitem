@@ -957,6 +957,14 @@ async function sendEmailCode(event) {
   if (!email) return fail(`请使用 @${AUTH_CONFIG.emailDomain} 邮箱`, 'INVALID_EMAIL');
   const ready = await ensureEmailCodeCollection();
   if (!ready) return fail('验证码存储未就绪，请先在云开发数据库创建 email_login_codes 集合', 'EMAIL_CODE_STORE_ERROR');
+  const purpose = event.purpose === 'register' ? 'register' : 'login';
+  const existed = await getEmailUser(email);
+  if (purpose === 'login' && !existed) {
+    return fail('该邮箱尚未注册，请先注册账号', 'EMAIL_NOT_REGISTERED');
+  }
+  if (purpose === 'register' && existed) {
+    return fail('该邮箱已注册，可切换到登录并使用密码或验证码登录', 'EMAIL_EXISTS');
+  }
 
   const hashedEmail = emailHash(email);
   const nowMs = Date.now();
@@ -976,7 +984,7 @@ async function sendEmailCode(event) {
     emailHash: hashedEmail,
     codeHash: sha256(`${email}:${code}:${salt}`),
     codeSalt: salt,
-    purpose: event.purpose || 'login',
+    purpose,
     attempts: 0,
     used: false,
     createdAtMs: nowMs,

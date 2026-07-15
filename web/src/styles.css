@@ -1927,6 +1927,22 @@ p {
   outline: 0;
 }
 
+.auth-password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 8px;
+}
+
+.auth-password-row button {
+  height: 43px;
+  color: var(--notice-green);
+  background: #EEF7F1;
+  border: 1px solid #CBE2D5;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .auth-code-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 108px;
