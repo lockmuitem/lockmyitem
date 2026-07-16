@@ -839,6 +839,20 @@ p {
   flex: 1;
 }
 
+.edit-nickname-entry {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  color: #2d7567;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(45, 117, 103, 0.2);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 5px 12px rgba(21, 36, 43, 0.06);
+}
+
 .name {
   overflow: hidden;
   color: #15242b;
@@ -1024,6 +1038,51 @@ p {
   border-radius: 6px;
   font-weight: 900;
   line-height: 39px;
+}
+
+.nickname-editor-backdrop {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(21, 36, 43, 0.35);
+}
+
+.nickname-editor-panel {
+  width: min(100%, 420px);
+  padding: 18px;
+  background: #fffdf8;
+  border: 1px solid #eadfca;
+  border-radius: 18px;
+  box-shadow: 0 22px 45px rgba(21, 36, 43, 0.22);
+}
+
+.nickname-editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.nickname-editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.nickname-editor-actions button {
+  height: 44px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.nickname-editor-actions button:disabled {
+  opacity: 0.65;
 }
 
 .list-head {

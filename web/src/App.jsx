@@ -18,7 +18,8 @@ import {
   saveItems,
   saveUser,
   sendEmailCode,
-  setCloudReturnStatus
+  setCloudReturnStatus,
+  updateUserNickname
 } from './store.js';
 import { classifyByText, findPotentialMatches, formatDate, getLocation, semanticSearchItems } from './utils.js';
 import { recognizeImageFile } from './vision.js';
@@ -424,6 +425,14 @@ function App() {
     if (pending) window.setTimeout(() => pending(user), 0);
   }
 
+  async function handleNicknameUpdate(nickName) {
+    const user = await updateUserNickname(nickName);
+    saveUser(user);
+    setCurrentUser(user);
+    setToast('昵称已更新');
+    return user;
+  }
+
   async function installDesktopApp() {
     if (isStandaloneDisplay()) {
       setToast('已经在桌面端模式运行');
@@ -566,6 +575,7 @@ function App() {
           onUndoReturned={undoReturned}
           onLogin={openAuthPanel}
           onLogout={logout}
+          onUpdateNickName={handleNicknameUpdate}
         />
       )}
 
@@ -707,7 +717,7 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
           <div>
             <h2 className="list-title">正在寻找 · {total} 条</h2>
           </div>
-          <span className="list-reminder">找到失物后请点击已找到</span>
+          <span className="list-reminder">找到失物后请在“我的”界面点击“已回家”</span>
         </div>
       )}
 
@@ -758,11 +768,45 @@ function ReturnedPage({ items, total, onOpen }) {
   );
 }
 
-function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogin, onLogout }) {
+function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogin, onLogout, onUpdateNickName }) {
   const shownItems = items;
   const displayName = currentUser?.nickName || '未登录';
   const accountEmail = currentUser?.email || currentUser?.contact || '';
   const avatarText = displayName.slice(0, 1);
+  const [editingNickName, setEditingNickName] = useState(false);
+  const [nickNameDraft, setNickNameDraft] = useState(displayName);
+  const [nickNameError, setNickNameError] = useState('');
+  const [savingNickName, setSavingNickName] = useState(false);
+
+  function openNicknameEditor() {
+    setNickNameDraft(displayName);
+    setNickNameError('');
+    setEditingNickName(true);
+  }
+
+  async function submitNickname(event) {
+    event.preventDefault();
+    const nextName = nickNameDraft.replace(/\s+/g, ' ').trim();
+    if (!nextName) {
+      setNickNameError('昵称不能为空');
+      return;
+    }
+    if (nextName.length > 20) {
+      setNickNameError('昵称最多 20 个字');
+      return;
+    }
+
+    setSavingNickName(true);
+    setNickNameError('');
+    try {
+      await onUpdateNickName(nextName);
+      setEditingNickName(false);
+    } catch (error) {
+      setNickNameError(cloudErrorMessage(error));
+    } finally {
+      setSavingNickName(false);
+    }
+  }
 
   return (
     <section className="page me-page">
@@ -777,6 +821,11 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
             <h1 className="name">{displayName}</h1>
             <p className="subtitle">{currentUser ? accountEmail : '发布或认领时再登录'}</p>
           </div>
+          {currentUser && (
+            <button className="edit-nickname-entry" type="button" onClick={openNicknameEditor}>
+              修改昵称
+            </button>
+          )}
         </div>
         <div className="hero-badge">
           <span>ShanghaiTech Lost &amp; Found</span>
@@ -840,6 +889,33 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
           )}
         </div>
       ))}
+      {editingNickName && (
+        <div className="nickname-editor-backdrop" role="dialog" aria-modal="true" aria-label="修改昵称">
+          <form className="nickname-editor-panel" onSubmit={submitNickname}>
+            <div className="nickname-editor-head">
+              <div>
+                <span className="section-kicker">账号资料</span>
+                <h2 className="form-title">修改昵称</h2>
+              </div>
+              <button className="auth-close" type="button" aria-label="关闭" onClick={() => setEditingNickName(false)}>×</button>
+            </div>
+            <label className="auth-field">
+              <span>新昵称</span>
+              <input
+                value={nickNameDraft}
+                maxLength={20}
+                placeholder="例如：图书馆同学"
+                onChange={(event) => setNickNameDraft(event.target.value)}
+              />
+            </label>
+            {nickNameError && <div className="auth-error">{nickNameError}</div>}
+            <div className="nickname-editor-actions">
+              <button className="button-secondary" type="button" onClick={() => setEditingNickName(false)} disabled={savingNickName}>取消</button>
+              <button className="button-primary" type="submit" disabled={savingNickName}>{savingNickName ? '保存中...' : '保存昵称'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   );
 }

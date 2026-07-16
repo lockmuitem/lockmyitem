@@ -404,6 +404,11 @@ export async function loginWithEmailCode({ email, code }) {
   return normalizeAuthUser(data);
 }
 
+export async function updateUserNickname(nickName) {
+  const data = await callLostfound('updateUserProfile', { nickName }, 15000);
+  return normalizeAuthUser(data);
+}
+
 export function createItem(payload) {
   const data = buildItemPayload(payload, { nickName: payload.ownerName });
   return normalizeItem({

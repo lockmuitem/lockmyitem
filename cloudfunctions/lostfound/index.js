@@ -1114,6 +1114,34 @@ async function loginWithEmailCode(event) {
   return ok(publicEmailUser(user, token));
 }
 
+async function updateUserProfile(event) {
+  const tokenPayload = verifyAuthToken(event.authToken);
+  if (!tokenPayload || !tokenPayload.sub) {
+    return fail('请先登录后再修改账号资料', 'AUTH_REQUIRED');
+  }
+
+  const user = await getUserByActorId(tokenPayload.sub);
+  if (!user || !user._id) {
+    return fail('账号不存在，请重新登录', 'USER_NOT_FOUND');
+  }
+
+  const nickName = sanitizeNickName(event.nickName || '', '');
+  if (!nickName) return fail('昵称不能为空', 'INVALID_NICKNAME');
+  if (nickName.length > 20) return fail('昵称最多 20 个字', 'INVALID_NICKNAME');
+
+  const updatedAt = now();
+  await db.collection(COLLECTIONS.users).doc(user._id).update({
+    data: {
+      nickName,
+      updatedAt
+    }
+  });
+
+  const updatedUser = { ...user, nickName, updatedAt };
+  const token = createAuthToken(updatedUser);
+  return ok(publicEmailUser(updatedUser, token));
+}
+
 async function createNotification(userOpenid, type, content, itemId, actorOpenid) {
   if (!userOpenid) return null;
   return db.collection(COLLECTIONS.notifications).add({
@@ -1560,6 +1588,8 @@ exports.main = async (event = {}) => {
         return await loginWithEmailPassword(event);
       case 'loginWithEmailCode':
         return await loginWithEmailCode(event);
+      case 'updateUserProfile':
+        return await updateUserProfile(event);
       case 'createItem':
         return await createItem(event, context);
       case 'classifyImage':
