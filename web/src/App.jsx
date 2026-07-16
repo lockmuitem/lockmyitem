@@ -648,9 +648,7 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
         value={semanticQuery}
         onChange={setSemanticQuery}
         tone="found"
-        resultCount={list.length}
-        totalCount={baseList.length}
-        placeholder="语义搜索：黑色雨伞、图书馆耳机、红色挂件..."
+        placeholder="标题，描述，地点信息"
       />
 
       <CategoryBar value={activeCategory} onChange={setActiveCategory} tone="found" />
@@ -699,9 +697,7 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
         value={semanticQuery}
         onChange={setSemanticQuery}
         tone="lost"
-        resultCount={list.length}
-        totalCount={baseList.length}
-        placeholder="语义搜索：校园卡、二食堂水杯、蓝色钥匙..."
+        placeholder="标题，描述，地点信息"
       />
 
       <CategoryBar value={activeCategory} onChange={setActiveCategory} tone="lost" />
@@ -710,7 +706,6 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
         <div className="section-bar">
           <div>
             <h2 className="list-title">正在寻找 · {total} 条</h2>
-            <p className="list-subtitle">同学发布的寻物线索</p>
           </div>
           <span className="list-reminder">找到失物后请点击已找到</span>
         </div>
@@ -1824,7 +1819,7 @@ function CategoryBar({ value, onChange, hideAll = false, tone = 'found' }) {
   );
 }
 
-function SemanticSearchBox({ value, onChange, tone = 'found', resultCount, totalCount, placeholder }) {
+function SemanticSearchBox({ value, onChange, tone = 'found', placeholder }) {
   const active = value.trim().length > 0;
   return (
     <div className={`semantic-search ${tone}`}>
@@ -1839,10 +1834,6 @@ function SemanticSearchBox({ value, onChange, tone = 'found', resultCount, total
         {active && (
           <button type="button" aria-label="清空语义搜索" onClick={() => onChange('')}>×</button>
         )}
-      </div>
-      <div className="semantic-search-meta">
-        <span>匹配标题、描述、AI 标签、地点和方位信息</span>
-        {active && <strong>命中 {resultCount}/{totalCount} 条</strong>}
       </div>
     </div>
   );

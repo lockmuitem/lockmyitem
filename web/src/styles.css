@@ -383,27 +383,6 @@ p {
   line-height: 26px;
 }
 
-.semantic-search-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 7px;
-  color: #6b7673;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.semantic-search-meta strong {
-  flex: 0 0 auto;
-  color: var(--notice-green);
-  font-weight: 900;
-}
-
-.semantic-search.lost .semantic-search-meta strong {
-  color: var(--lost-blue);
-}
-
 .section-bar {
   display: flex;
   align-items: flex-end;
