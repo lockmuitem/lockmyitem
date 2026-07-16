@@ -587,6 +587,7 @@ function App() {
           items={items}
           total={stats.returned}
           onOpen={openDetail}
+          currentUser={currentUser}
         />
       )}
 
@@ -624,6 +625,7 @@ function App() {
           comments={commentsByItem[selectedItem.id] || []}
           onBack={backFromDetail}
           claiming={claimingItemId === selectedItem.id}
+          currentUser={currentUser}
           isOwnItem={itemBelongsToCurrentUser(selectedItem, currentUser, currentClientId)}
           onClaim={() => submitClaim(selectedItem)}
           onMarkReturned={() => markReturned(selectedItem.id)}
@@ -759,7 +761,8 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
   );
 }
 
-function ReturnedPage({ items, total, onOpen }) {
+function ReturnedPage({ items, total, onOpen, currentUser }) {
+  const canSeeClaimant = Boolean(currentUser);
   const list = items
     .filter((item) => item.status === 'returned')
     .sort((a, b) => new Date(b.returnedAt || b.createdAt) - new Date(a.returnedAt || a.createdAt));
@@ -780,16 +783,19 @@ function ReturnedPage({ items, total, onOpen }) {
         <div className="empty">还没有已找到记录</div>
       ) : (
         <div className="feed-panel">
-          {list.map((item) => (
-            <button key={item.id} className="found-row" type="button" onClick={() => onOpen(item.id)}>
-              <span className="badge">已回家</span>
-              <span className="item-copy">
-                <strong className="title">{item.title}</strong>
-                <span className="meta">{item.category}{locationText(item) ? ` · ${locationText(item)}` : ''}</span>
-                {claimantText(item) && <span className="meta claimed-meta">{claimantText(item)}</span>}
-              </span>
-            </button>
-          ))}
+          {list.map((item) => {
+            const claimant = claimantText(item, canSeeClaimant);
+            return (
+              <button key={item.id} className="found-row" type="button" onClick={() => onOpen(item.id)}>
+                <span className="badge">已回家</span>
+                <span className="item-copy">
+                  <strong className="title">{item.title}</strong>
+                  <span className="meta">{item.category}{locationText(item) ? ` · ${locationText(item)}` : ''}</span>
+                  {claimant && <span className="meta claimed-meta">{claimant}</span>}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </section>
@@ -912,7 +918,7 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
               <span className="status-text">{item.status === 'returned' ? '已回家' : '进行中'}</span>
             </span>
             <strong className="title">{item.title}</strong>
-            <span className="meta">{itemMeta(item)}</span>
+            <span className="meta">{itemMeta(item, Boolean(currentUser))}</span>
           </button>
           {item.status === 'active' ? (
             <button className="small-action" type="button" onClick={() => onMarkReturned(item.id)}>已回家</button>
@@ -1790,10 +1796,13 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   );
 }
 
-function DetailPage({ item, items, comments = [], onBack, claiming = false, isOwnItem = false, onClaim, onComment, onOpenMatch }) {
+function DetailPage({ item, items, comments = [], onBack, claiming = false, currentUser, isOwnItem = false, onClaim, onComment, onOpenMatch }) {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const matches = findPotentialMatches(item, items);
+  const canSeeClaimant = Boolean(currentUser);
+  const claimant = claimantText(item, canSeeClaimant);
+  const visibleComments = canSeeClaimant ? comments : comments.filter((comment) => !isClaimantComment(comment));
   const statusLabel = item.status === 'returned'
     ? '已回家'
     : item.type === 'lost'
@@ -1835,10 +1844,10 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, isOw
           </span>
         </div>
         <p className="desc">{item.description}</p>
-        {claimantText(item) && (
+        {claimant && (
           <div className="claimant-note">
             <span>领取人</span>
-            <strong>{claimantText(item)}</strong>
+            <strong>{claimant}</strong>
           </div>
         )}
       </div>
@@ -1892,11 +1901,11 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, isOw
       )}
 
       <h2 className="section-title">评论</h2>
-      {comments.length === 0 ? (
+      {visibleComments.length === 0 ? (
         <div className="empty small">还没有评论</div>
       ) : (
         <div className="comment-list">
-          {comments.map((comment) => (
+          {visibleComments.map((comment) => (
             <div className="comment-card" key={comment.id}>
               <div className="comment-head">
                 <strong>{comment.authorName}</strong>
@@ -2060,18 +2069,24 @@ function knownLocationById(locationId) {
   return locations.find((location) => location.id === resolvedId) || null;
 }
 
-function itemMeta(item) {
+function itemMeta(item, canSeeClaimant = false) {
   const date = formatDate(item.createdAt);
   const location = locationText(item);
-  const claimant = item.status === 'returned' ? claimantText(item) : '';
+  const claimant = item.status === 'returned' ? claimantText(item, canSeeClaimant) : '';
   return [item.category, location, claimant, date].filter(Boolean).join(' · ');
 }
 
-function claimantText(item) {
+function claimantText(item, canSeeClaimant = false) {
+  if (!canSeeClaimant) return '';
   const name = String(item.claimantName || '').trim();
   const contact = String(item.claimantContact || '').trim();
   if (!name && !contact) return '';
   return `领取人：${[name, contact].filter(Boolean).join(' · ')}`;
+}
+
+function isClaimantComment(comment = {}) {
+  const content = String(comment.content || '');
+  return /已认领|申请认领|领取人|领取者/.test(content);
 }
 
 export default App;

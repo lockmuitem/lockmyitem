@@ -715,6 +715,31 @@ function verifyAuthToken(token = '') {
   }
 }
 
+function canSeeClaimantInfo(event = {}) {
+  const tokenPayload = verifyAuthToken(event.authToken);
+  return Boolean(tokenPayload && tokenPayload.sub);
+}
+
+function sanitizeClaimantInfo(item = {}, canSeeClaimant = false) {
+  if (canSeeClaimant) return item;
+  return {
+    ...item,
+    claimantName: '',
+    claimantContact: '',
+    claimedByOpenid: '',
+    claims: []
+  };
+}
+
+function isClaimantCommentContent(content = '') {
+  return /已认领|申请认领|领取人|领取者/.test(String(content || ''));
+}
+
+function sanitizeCommentsForViewer(comments = [], canSeeClaimant = false) {
+  if (canSeeClaimant) return comments;
+  return comments.filter((comment) => !isClaimantCommentContent(comment.content));
+}
+
 function formatUtcDate(timestamp) {
   return new Date(timestamp * 1000).toISOString().slice(0, 10);
 }
@@ -1415,6 +1440,7 @@ async function createItem(event, context) {
 
 async function listItems(event) {
   const filters = event.filters || {};
+  const canSeeClaimant = canSeeClaimantInfo(event);
   const query = { status: filters.status || 'active' };
   if (filters.type) query.type = filters.type;
   if (filters.category && filters.category !== '全部') query.category = filters.category;
@@ -1425,18 +1451,22 @@ async function listItems(event) {
     .skip(filters.cursor || 0)
     .limit(filters.limit || 20)
     .get();
-  const items = await hydrateItemImages(result.data);
+  const items = (await hydrateItemImages(result.data)).map((item) => sanitizeClaimantInfo(item, canSeeClaimant));
   return ok({ items, nextCursor: (filters.cursor || 0) + result.data.length });
 }
 
 async function getItemDetail(event) {
+  const canSeeClaimant = canSeeClaimantInfo(event);
   const item = await db.collection(COLLECTIONS.items).doc(event.itemId).get();
   const comments = await db.collection(COLLECTIONS.comments)
     .where({ itemId: event.itemId, status: 'active' })
     .orderBy('createdAt', 'asc')
     .get();
   const items = await hydrateItemImages([item.data]);
-  return ok({ item: items[0], comments: comments.data });
+  return ok({
+    item: sanitizeClaimantInfo(items[0], canSeeClaimant),
+    comments: sanitizeCommentsForViewer(comments.data, canSeeClaimant)
+  });
 }
 
 async function createComment(event, context) {
