@@ -113,18 +113,4 @@ export const seedItems = [
     status: 'active',
     createdAt: '2026-06-27T08:30:00.000Z'
   },
-  {
-    id: 'item_bottle_1',
-    type: 'found',
-    title: '白色保温杯',
-    description: '体育馆看台第三排发现，杯身有贴纸。',
-    category: '水杯',
-    tags: ['水杯', '保温杯', '白色'],
-    image: notebookImage,
-    locationId: 'athletic',
-    ownerName: '体育馆值日生',
-    status: 'returned',
-    createdAt: '2026-06-26T19:15:00.000Z',
-    returnedAt: '2026-06-27T12:00:00.000Z'
-  }
 ];

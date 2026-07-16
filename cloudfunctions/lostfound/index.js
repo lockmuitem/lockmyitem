@@ -482,6 +482,8 @@ function getWebClientActorId(event = {}) {
 }
 
 function getActorId(context = {}, event = {}) {
+  const tokenPayload = verifyAuthToken(event.authToken);
+  if (tokenPayload && tokenPayload.sub) return tokenPayload.sub;
   const trustedActor = firstTrustedContextValue(context, [
     'OPENID',
     'UNIONID',
@@ -490,8 +492,6 @@ function getActorId(context = {}, event = {}) {
     'TcbUuid'
   ]);
   if (trustedActor) return trustedActor;
-  const tokenPayload = verifyAuthToken(event.authToken);
-  if (tokenPayload && tokenPayload.sub) return tokenPayload.sub;
   return getWebClientActorId(event);
 }
 
@@ -1226,7 +1226,7 @@ async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) 
     .get();
 
   const matches = (result.data || [])
-    .filter((lostItem) => lostItem.ownerOpenid && lostItem.ownerOpenid !== foundItem.ownerOpenid)
+    .filter((lostItem) => lostItem.ownerOpenid)
     .map((lostItem) => {
       const match = scoreLostFoundMatch(lostItem, foundItem);
       return { lostItem, ...match };
