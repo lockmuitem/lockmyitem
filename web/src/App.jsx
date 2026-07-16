@@ -643,6 +643,7 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
           <h1 className="app-title">失物招领平台</h1>
           <p className="app-subtitle">上海科技大学</p>
         </div>
+        <RefreshHint />
         <PwaInstallButton tone="found" onClick={onInstallDesktop} />
       </div>
 
@@ -692,6 +693,7 @@ function LostPage({ items, activeCategory, setActiveCategory, total, onPublish, 
           <h1 className="app-title">寻物登记</h1>
           <p className="app-subtitle">丢失物品后，先登记线索再等待匹配提醒</p>
         </div>
+        <RefreshHint />
         <PwaInstallButton tone="lost" onClick={onInstallDesktop} />
       </div>
 
@@ -766,6 +768,10 @@ function ReturnedPage({ items, total, onOpen }) {
       )}
     </section>
   );
+}
+
+function RefreshHint() {
+  return <span className="refresh-hint">下拉页面以刷新</span>;
 }
 
 function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogin, onLogout, onUpdateNickName }) {
