@@ -669,6 +669,14 @@ p {
   padding: 10px 12px;
 }
 
+.match-link {
+  cursor: pointer;
+}
+
+.match-link:active {
+  background: #f3f8f6;
+}
+
 .badge {
   flex: 0 0 auto;
   padding: 5px 8px;

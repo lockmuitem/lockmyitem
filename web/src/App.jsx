@@ -257,7 +257,25 @@ function App() {
     });
   }
 
+  function openMatchDetailFromDetail(id) {
+    if (!selectedItem || selectedItem.id === id) return;
+    openDetail(id, {
+      view: 'detail',
+      itemId: selectedItem.id,
+      scrollY: window.scrollY,
+      parent: detailReturnTarget
+    });
+  }
+
   function backFromDetail() {
+    if (detailReturnTarget?.view === 'detail' && detailReturnTarget.itemId) {
+      const scrollY = detailReturnTarget.scrollY || 0;
+      setSelectedId(detailReturnTarget.itemId);
+      setDetailReturnTarget(detailReturnTarget.parent || null);
+      setView('detail');
+      window.requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
+      return;
+    }
     if (detailReturnTarget?.view?.startsWith('publish')) {
       const scrollY = detailReturnTarget.scrollY || 0;
       setSelectedId(null);
@@ -530,6 +548,7 @@ function App() {
           onMarkReturned={() => markReturned(selectedItem.id)}
           onUndoReturned={() => undoReturned(selectedItem.id)}
           onComment={(content) => submitComment(selectedItem, content)}
+          onOpenMatch={openMatchDetailFromDetail}
         />
       )}
 
@@ -1623,7 +1642,7 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   );
 }
 
-function DetailPage({ item, items, comments = [], onBack, claiming = false, onClaim, onComment }) {
+function DetailPage({ item, items, comments = [], onBack, claiming = false, onClaim, onComment, onOpenMatch }) {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const matches = findPotentialMatches(item, items);
@@ -1708,13 +1727,18 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, onCl
           <h2 className="section-title">可能匹配</h2>
           <div className="feed-panel">
             {matches.map((match) => (
-              <div key={match.id} className="found-row compact">
+              <button
+                key={match.id}
+                className="found-row compact match-link"
+                type="button"
+                onClick={() => onOpenMatch(match.id)}
+              >
                 <span className="badge">{match.similarity}%</span>
                 <span className="item-copy">
                   <strong className="title">{match.title}</strong>
                   <span className="meta">{match.reasons.join('、')}</span>
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </>
