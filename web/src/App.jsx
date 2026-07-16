@@ -7,6 +7,7 @@ import {
   createCloudComment,
   createCloudItem,
   createItem,
+  getClientId,
   loadCloudItemDetail,
   loadCloudItems,
   loadItems,
@@ -41,6 +42,39 @@ const tabItems = [
 const SCHOOL_EMAIL_DOMAIN = 'shanghaitech.edu.cn';
 const EMAIL_CODE_COOLDOWN_SECONDS = 30;
 const LOCATION_DETAIL_HINT = '可补充入口、楼层、靠窗/靠路侧、附近标志物等细节。';
+
+function normalizedIdentity(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function itemBelongsToCurrentUser(item = {}, currentUser, currentClientId = '') {
+  if (!currentUser) return false;
+
+  const actorId = normalizedIdentity(currentUser.actorId || currentUser._openid || currentUser.openid);
+  const userId = normalizedIdentity(currentUser.id || currentUser._id || currentUser.userId);
+  const email = normalizedIdentity(currentUser.email || currentUser.contact);
+  const ownerOpenid = normalizedIdentity(item.ownerOpenid || item.ownerId || item.openid);
+  const ownerUserId = normalizedIdentity(item.ownerUserId || item.userId);
+  const ownerEmail = normalizedIdentity(item.ownerEmail || item.ownerContact || item.contact);
+
+  if (actorId && ownerOpenid === actorId) return true;
+  if (userId && ownerUserId === userId) return true;
+  if (email && ownerEmail === email) return true;
+
+  const ownerClientId = normalizedIdentity(item.ownerClientId);
+  return Boolean(item.localOnly && currentClientId && ownerClientId === normalizedIdentity(currentClientId));
+}
+
+function getStatsFromItems(sourceItems) {
+  const active = sourceItems.filter((item) => item.status === 'active');
+  return {
+    found: active.filter((item) => item.type === 'found').length,
+    lost: active.filter((item) => item.type === 'lost').length,
+    returned: sourceItems.filter((item) => item.status === 'returned').length,
+    total: sourceItems.length,
+    active: active.length
+  };
+}
 
 function isStandaloneDisplay() {
   if (typeof window === 'undefined') return false;
@@ -195,16 +229,13 @@ function App() {
     };
   }, []);
 
-  const stats = useMemo(() => {
-    const active = items.filter((item) => item.status === 'active');
-    return {
-      found: active.filter((item) => item.type === 'found').length,
-      lost: active.filter((item) => item.type === 'lost').length,
-      returned: items.filter((item) => item.status === 'returned').length,
-      total: items.length,
-      active: active.length
-    };
-  }, [items]);
+  const currentClientId = useMemo(() => getClientId(), []);
+  const stats = useMemo(() => getStatsFromItems(items), [items]);
+  const myItems = useMemo(
+    () => items.filter((item) => itemBelongsToCurrentUser(item, currentUser, currentClientId)),
+    [items, currentUser, currentClientId]
+  );
+  const myStats = useMemo(() => getStatsFromItems(myItems), [myItems]);
 
   const selectedItem = items.find((item) => item.id === selectedId);
 
@@ -513,8 +544,8 @@ function App() {
 
       {view === 'me' && (
         <MePage
-          items={items}
-          stats={stats}
+          items={myItems}
+          stats={myStats}
           currentUser={currentUser}
           onPublish={() => openPublish('found')}
           onOpen={openDetail}
@@ -724,7 +755,7 @@ function ReturnedPage({ items, total, onOpen }) {
 }
 
 function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, onUndoReturned, onLogin, onLogout }) {
-  const shownItems = items.slice(0, 8);
+  const shownItems = items;
   const displayName = currentUser?.nickName || '未登录';
   const accountEmail = currentUser?.email || currentUser?.contact || '';
   const avatarText = displayName.slice(0, 1);
