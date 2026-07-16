@@ -585,8 +585,8 @@ function FoundPage({ items, activeCategory, setActiveCategory, total, onPublish,
     <section className="page found-page">
       <div className="board-head">
         <div>
-          <h1 className="app-title">校园公告板</h1>
-          <p className="app-subtitle">上海科技大学 · 失物招领平台</p>
+          <h1 className="app-title">失物招领平台</h1>
+          <p className="app-subtitle">上海科技大学</p>
         </div>
         <PwaInstallButton tone="found" onClick={onInstallDesktop} />
       </div>
@@ -1703,7 +1703,6 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, onCl
           <span className="location-badge">校内定位</span>
         </div>
         <div className="location-guide">{location.guide}</div>
-        {item.locationDetail && <p className="location-detail-note">{item.locationDetail}</p>}
         {(item.locationImages || []).length > 0 && (
           <div className="location-photo-strip">
             {item.locationImages.map((image, index) => (
