@@ -104,6 +104,22 @@ p {
   min-width: 0;
 }
 
+.returned-page .board-head {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 22px;
+}
+
+.returned-page .app-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.returned-page .app-subtitle {
+  min-width: 0;
+  margin-top: 0;
+}
+
 .desktop-install {
   flex: 0 0 auto;
   display: inline-flex;
