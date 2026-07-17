@@ -82,7 +82,7 @@ const AUTH_CONFIG = {
 };
 
 const MATCH_EMAIL_CONFIG = {
-  threshold: positiveNumber(process.env.MATCH_EMAIL_THRESHOLD, 76),
+  threshold: positiveNumber(process.env.MATCH_EMAIL_THRESHOLD, 70),
   maxRecipients: positiveNumber(process.env.MATCH_EMAIL_MAX_RECIPIENTS, 5)
 };
 
