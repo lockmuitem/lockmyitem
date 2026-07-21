@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { campusMapImage, campusMapImageBoundaries, campusMapMeta, categories, locationAliases, locations } from './data.js';
 import {
@@ -68,6 +68,13 @@ function saveCurrentView(view) {
   } catch {
     // Ignore storage failures; navigation should still work.
   }
+}
+
+function syncToastForView(view) {
+  if (view === 'lost') return '已更新最近的寻物记录';
+  if (view === 'returned') return '已更新最近的已找到记录';
+  if (view === 'me') return '已更新我的发布记录';
+  return '已更新最近的失物招领记录';
 }
 
 function normalizedIdentity(value) {
@@ -193,12 +200,14 @@ function App() {
   const [authPrompt, setAuthPrompt] = useState(null);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [showPwaGuide, setShowPwaGuide] = useState(false);
+  const viewRef = useRef(view);
 
   useEffect(() => {
     saveItems(items);
   }, [items]);
 
   useEffect(() => {
+    viewRef.current = view;
     saveCurrentView(view);
   }, [view]);
 
@@ -209,7 +218,7 @@ function App() {
       .then((cloudItems) => {
         if (cancelled) return;
         setItems(cloudItems);
-        setToast('已更新最近的失物招领/寻物记录');
+        setToast(syncToastForView(viewRef.current));
       })
       .catch((error) => {
         if (cancelled) return;
