@@ -4,6 +4,7 @@
     "campus_locations": "all users can read, only admins can write",
     "items": "all users can read active/returned items, writes through cloud function",
     "comments": "all users can read active comments, writes through cloud function",
+    "claim_requests": "claimant and item owner can read related requests, writes through cloud function",
     "thanks": "owner-related reads only, writes through cloud function",
     "notifications": "user can read own notifications only, writes through cloud function",
     "reports": "admins only, writes through cloud function",

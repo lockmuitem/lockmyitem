@@ -1,4 +1,5 @@
 import { categoryImages, locations, seedItems } from './data.js';
+import { sanitizeFoundItemPrivacy } from './privacy.js';
 import { classifyByText, getLocation } from './utils.js';
 
 const STORAGE_KEY = 'shanghaitech_lostfound_web_v1';
@@ -192,7 +193,7 @@ function normalizeItem(raw = {}) {
     ...(raw.yoloObjects || [])
   ]);
 
-  return {
+  return sanitizeFoundItemPrivacy({
     ...raw,
     id: raw.id || raw._id || `item_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
     _id: raw._id || raw.id,
@@ -222,7 +223,7 @@ function normalizeItem(raw = {}) {
     claimantName: raw.claimantName || raw.claimedByName || '',
     claimantContact: raw.claimantContact || raw.claimedByContact || '',
     claims: raw.claims || []
-  };
+  });
 }
 
 function normalizeComment(raw = {}) {
@@ -234,6 +235,22 @@ function normalizeComment(raw = {}) {
     content: raw.content || '',
     status: raw.status || 'active',
     createdAt: normalizeDate(raw.createdAt)
+  };
+}
+
+function normalizeClaimRequest(raw = {}) {
+  return {
+    ...raw,
+    id: raw.id || raw._id || raw.requestId || `claim_request_${Date.now()}`,
+    itemId: raw.itemId || '',
+    claimantName: raw.claimantName || '网页用户',
+    claimantContact: raw.claimantContact || '',
+    description: raw.description || '',
+    status: raw.status || 'pending_review',
+    modelDecision: raw.modelDecision || {},
+    attemptCount: raw.attemptCount || 0,
+    createdAt: raw.createdAt ? normalizeDate(raw.createdAt, '') : raw.createdAt,
+    updatedAt: raw.updatedAt ? normalizeDate(raw.updatedAt, '') : raw.updatedAt
   };
 }
 
@@ -340,7 +357,7 @@ function buildItemPayload(payload, currentUser) {
   ]);
   const location = locationPayload(payload.locationId);
 
-  return {
+  return sanitizeFoundItemPrivacy({
     type: payload.type || 'found',
     title,
     description,
@@ -356,7 +373,7 @@ function buildItemPayload(payload, currentUser) {
     locationDetail: payload.locationDetail || location.locationDetail || '',
     ownerName: currentUser?.nickName || payload.ownerName || '网页用户',
     ownerClientId: getClientId()
-  };
+  });
 }
 
 export function loadUser() {
@@ -443,11 +460,12 @@ export async function createCloudItem(payload, currentUser) {
   return normalizeItem(data);
 }
 
-export async function loadCloudItemDetail(itemId) {
-  const data = await callLostfound('getItemDetail', { itemId }, 15000);
+export async function loadCloudItemDetail(itemId, claimToken = '') {
+  const data = await callLostfound('getItemDetail', { itemId, claimToken }, 15000);
   return {
     item: data.item ? normalizeItem(data.item) : null,
-    comments: Array.isArray(data.comments) ? data.comments.map(normalizeComment) : []
+    comments: Array.isArray(data.comments) ? data.comments.map(normalizeComment) : [],
+    claimRequests: Array.isArray(data.claimRequests) ? data.claimRequests.map(normalizeClaimRequest) : []
   };
 }
 
@@ -472,13 +490,33 @@ export function createLocalComment(itemId, content, currentUser) {
   });
 }
 
-export async function claimCloudItem(itemId, currentUser) {
+export async function verifyClaimDescription(itemId, description) {
+  const data = await callLostfound('verifyClaimDescription', { itemId, description }, 20000);
+  return {
+    ...data,
+    requestId: data.requestId || data.request?._id || data.request?.id || '',
+    modelDecision: data.modelDecision || {}
+  };
+}
+
+export async function claimCloudItem(itemId, currentUser, options = {}) {
   const data = await callLostfound('claimItem', {
     itemId,
     claimantName: currentUser?.nickName || '网页用户',
-    claimantContact: currentUser?.contact || ''
+    claimantContact: currentUser?.contact || '',
+    claimToken: options.claimToken || '',
+    requestId: options.requestId || ''
   }, 15000);
   return {
+    item: data.item ? normalizeItem(data.item) : null,
+    comment: data.comment ? normalizeComment(data.comment) : null
+  };
+}
+
+export async function reviewCloudClaimRequest(requestId, decision) {
+  const data = await callLostfound('reviewClaimRequest', { requestId, decision }, 20000);
+  return {
+    request: data.request ? normalizeClaimRequest(data.request) : null,
     item: data.item ? normalizeItem(data.item) : null,
     comment: data.comment ? normalizeComment(data.comment) : null
   };

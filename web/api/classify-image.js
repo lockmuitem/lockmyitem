@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { privacyPromptLines, sanitizeFoundItemPrivacy } from '../src/privacy.js';
 
 const HUNYUAN_BASE_URL = (process.env.HUNYUAN_BASE_URL || 'https://api.hunyuan.cloud.tencent.com/v1').replace(/\/$/, '');
 const HUNYUAN_MODEL = process.env.HUNYUAN_MODEL || 'hunyuan-vision';
@@ -203,7 +204,7 @@ function normalizeHunyuanResult(result = {}) {
   };
 }
 
-function buildVisionPrompt(hint = '', purpose = 'item') {
+function buildVisionPrompt(hint = '', purpose = 'item', itemType = '') {
   if (purpose === 'locationDetail') {
     return [
       '你是上海科技大学校园失物招领系统的方位图片识别助手。',
@@ -223,6 +224,7 @@ function buildVisionPrompt(hint = '', purpose = 'item') {
     '你是上海科技大学校园失物招领系统的图像识别助手。',
     '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
     '只提取物品信息，不要提到评论区、联系失主、领取流程或发布建议。',
+    ...privacyPromptLines(itemType),
     '必须只返回 JSON，不要 Markdown，不要解释。',
     'JSON 字段：title, description, category, tags, colors, accessories, objects。',
     'category 从以下中文类别中选择：证件、电子产品、书本资料、衣物、钥匙、校园卡、雨伞、水杯、其他。',
@@ -294,7 +296,7 @@ export default async function handler(req, res) {
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: imageUrl } },
-              { type: 'text', text: buildVisionPrompt(body.hint, body.purpose || 'item') }
+              { type: 'text', text: buildVisionPrompt(body.hint, body.purpose || 'item', body.itemType || '') }
             ]
           }
         ],
@@ -310,7 +312,8 @@ export default async function handler(req, res) {
 
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const semantic = normalizeHunyuanResult(parseJsonContent(content || ''));
-    return ok(res, {
+    const payload = sanitizeFoundItemPrivacy({
+      type: body.itemType || '',
       title: semantic.title || semantic.category || '待识别物品',
       description: semantic.description || semantic.aiTags.join('、'),
       category: semantic.category || '其他',
@@ -331,6 +334,7 @@ export default async function handler(req, res) {
         model: HUNYUAN_MODEL
       }
     });
+    return ok(res, payload);
   } catch (error) {
     const message = error.name === 'AbortError' ? '混元识别超时' : (error.message || '混元识别失败');
     return fail(res, 502, message, 'HUNYUAN_FAILED');

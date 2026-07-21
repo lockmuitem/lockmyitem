@@ -1,5 +1,6 @@
 const cloud = require('wx-server-sdk');
 const crypto = require('crypto');
+const { isProtectedFoundItem, privacyPromptLines, sanitizeFoundItemPrivacy } = require('./privacy');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -10,6 +11,7 @@ const COLLECTIONS = {
   users: 'users',
   items: 'items',
   comments: 'comments',
+  claimRequests: 'claim_requests',
   thanks: 'thanks',
   notifications: 'notifications',
   reports: 'reports',
@@ -86,11 +88,20 @@ const MATCH_EMAIL_CONFIG = {
   maxRecipients: positiveNumber(process.env.MATCH_EMAIL_MAX_RECIPIENTS, 5)
 };
 
+const CLAIM_CONFIG = {
+  tokenTtlMs: positiveNumber(process.env.CLAIM_TOKEN_TTL_MS, 10 * 60 * 1000),
+  minDescriptionLength: positiveNumber(process.env.CLAIM_DESCRIPTION_MIN_LENGTH, 8),
+  maxDescriptionLength: positiveNumber(process.env.CLAIM_DESCRIPTION_MAX_LENGTH, 260),
+  minModelConfidence: positiveNumber(process.env.CLAIM_MODEL_MIN_CONFIDENCE, 0.68)
+};
+
 const classifyRateBuckets = new Map();
 let rateLimitCollectionReady = false;
 let rateLimitCollectionDisabled = false;
 let emailCodeCollectionReady = false;
 let emailCodeCollectionDisabled = false;
+let claimRequestCollectionReady = false;
+let claimRequestCollectionDisabled = false;
 
 function optionalNumber(value) {
   const number = Number(value);
@@ -612,6 +623,23 @@ async function ensureEmailCodeCollection() {
   return true;
 }
 
+async function ensureClaimRequestCollection() {
+  if (claimRequestCollectionReady) return true;
+  if (claimRequestCollectionDisabled) return false;
+
+  try {
+    await db.createCollection(COLLECTIONS.claimRequests);
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) {
+      claimRequestCollectionDisabled = true;
+      return false;
+    }
+  }
+
+  claimRequestCollectionReady = true;
+  return true;
+}
+
 function sha256(value, encoding = 'hex') {
   return crypto.createHash('sha256').update(value, 'utf8').digest(encoding);
 }
@@ -720,6 +748,76 @@ function canSeeClaimantInfo(event = {}) {
   return Boolean(tokenPayload && tokenPayload.sub);
 }
 
+function createClaimToken(itemId, claimantOpenid) {
+  const payload = {
+    typ: 'claim',
+    itemId,
+    sub: claimantOpenid,
+    exp: Date.now() + CLAIM_CONFIG.tokenTtlMs,
+    nonce: crypto.randomBytes(8).toString('hex')
+  };
+  const body = base64UrlEncode(JSON.stringify(payload));
+  const signature = hmac(AUTH_CONFIG.tokenSecret, `claim.${body}`, 'base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+  return `${body}.${signature}`;
+}
+
+function verifyClaimToken(token = '', itemId = '', claimantOpenid = '') {
+  const value = String(token || '').trim();
+  const parts = value.split('.');
+  if (parts.length !== 2) return null;
+  const expected = hmac(AUTH_CONFIG.tokenSecret, `claim.${parts[0]}`, 'base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+  if (!safeEqual(expected, parts[1])) return null;
+  try {
+    const payload = JSON.parse(base64UrlDecode(parts[0]));
+    if (payload.typ !== 'claim') return null;
+    if (payload.itemId !== itemId || payload.sub !== claimantOpenid) return null;
+    if (!payload.exp || Number(payload.exp) < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function itemBelongsToActor(item = {}, actorId = '') {
+  return Boolean(actorId && item.ownerOpenid === actorId);
+}
+
+function stripProtectedImages(item = {}) {
+  return {
+    ...item,
+    image: '',
+    imageUrls: [],
+    imageFileIds: [],
+    thumbUrl: '',
+    locationImages: [],
+    claimImageLocked: true,
+    claimProtected: true
+  };
+}
+
+function canViewProtectedImages(item = {}, event = {}, actorId = '') {
+  if (!isProtectedFoundItem(item)) return true;
+  if (itemBelongsToActor(item, actorId)) return true;
+  return Boolean(verifyClaimToken(event.claimToken, item._id || item.id || event.itemId, actorId));
+}
+
+function sanitizeItemForViewer(item = {}, event = {}, actorId = '') {
+  const safeItem = sanitizeFoundItemPrivacy(sanitizeClaimantInfo(item, canSeeClaimantInfo(event)));
+  if (!isProtectedFoundItem(safeItem)) {
+    return { ...safeItem, claimProtected: false, claimImageLocked: false };
+  }
+  if (canViewProtectedImages(safeItem, event, actorId)) {
+    return { ...safeItem, claimProtected: true, claimImageLocked: false };
+  }
+  return stripProtectedImages(safeItem);
+}
+
 function sanitizeClaimantInfo(item = {}, canSeeClaimant = false) {
   if (canSeeClaimant) return item;
   return {
@@ -779,7 +877,7 @@ function signTencentCloudRequest(payloadText, timestamp) {
   ].join(', ');
 }
 
-function buildVisionPrompt(hint = '', purpose = 'item') {
+function buildVisionPrompt(hint = '', purpose = 'item', itemType = '') {
   if (purpose === 'locationDetail') {
     return [
       '你是上海科技大学校园失物招领系统的方位图片识别助手。',
@@ -799,6 +897,7 @@ function buildVisionPrompt(hint = '', purpose = 'item') {
     '你是上海科技大学校园失物招领系统的图像识别助手。',
     '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
     '只提取物品信息，不要提到评论区、联系失主、领取流程或发布建议。',
+    ...privacyPromptLines(itemType),
     '必须只返回 JSON，不要 Markdown，不要解释。',
     'JSON 字段：title, description, category, tags, colors, accessories, objects。',
     'category 从以下中文类别中选择：证件、电子产品、书本资料、衣物、钥匙、校园卡、雨伞、水杯、其他。',
@@ -810,7 +909,7 @@ function buildVisionPrompt(hint = '', purpose = 'item') {
 async function callOpenAICompatibleHunyuanVision(payload) {
   const fetchClient = getFetch();
   const endpoint = `${HUNYUAN_CONFIG.baseUrl}/chat/completions`;
-  const prompt = buildVisionPrompt(payload.hint, payload.purpose);
+  const prompt = buildVisionPrompt(payload.hint, payload.purpose, payload.itemType);
 
   const response = await fetchClient(endpoint, {
     method: 'POST',
@@ -854,7 +953,7 @@ async function callTencentCloudHunyuanVision(payload) {
       {
         Role: 'user',
         Contents: [
-          { Type: 'text', Text: buildVisionPrompt(payload.hint, payload.purpose) },
+          { Type: 'text', Text: buildVisionPrompt(payload.hint, payload.purpose, payload.itemType) },
           { Type: 'image_url', ImageUrl: { Url: payload.imageUrl } }
         ]
       }
@@ -894,6 +993,80 @@ async function callHunyuanVision(payload) {
     return callTencentCloudHunyuanVision(payload);
   }
   return callOpenAICompatibleHunyuanVision(payload);
+}
+
+async function callOpenAICompatibleHunyuanText(prompt) {
+  const fetchClient = getFetch();
+  const response = await fetchClient(`${HUNYUAN_CONFIG.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${HUNYUAN_CONFIG.apiKey}`,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: HUNYUAN_CONFIG.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1
+    }),
+    timeout: 30000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data.error && (data.error.message || data.error.code);
+    throw new Error(`混元文本判断失败 ${response.status}${message ? `: ${message}` : ''}`);
+  }
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  return parseJsonContent(content || '');
+}
+
+async function callTencentCloudHunyuanText(prompt) {
+  const fetchClient = getFetch();
+  const endpointHost = new URL(HUNYUAN_CONFIG.tencentEndpoint).host;
+  const requestBody = {
+    Model: HUNYUAN_CONFIG.model,
+    Stream: false,
+    Temperature: 0.1,
+    Messages: [
+      {
+        Role: 'user',
+        Contents: [{ Type: 'text', Text: prompt }]
+      }
+    ]
+  };
+  const payloadText = JSON.stringify(requestBody);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const headers = {
+    authorization: signTencentCloudRequest(payloadText, timestamp),
+    'content-type': 'application/json; charset=utf-8',
+    host: endpointHost,
+    'x-tc-action': HUNYUAN_CONFIG.tencentAction,
+    'x-tc-timestamp': String(timestamp),
+    'x-tc-version': HUNYUAN_CONFIG.tencentVersion
+  };
+  if (HUNYUAN_CONFIG.tencentRegion) headers['x-tc-region'] = HUNYUAN_CONFIG.tencentRegion;
+
+  const response = await fetchClient(HUNYUAN_CONFIG.tencentEndpoint, {
+    method: 'POST',
+    headers,
+    body: payloadText,
+    timeout: 30000
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || (data.Response && data.Response.Error)) {
+    const error = data.Response && data.Response.Error;
+    const message = error && (error.Message || error.Code);
+    throw new Error(`混元文本判断失败 ${response.status}${message ? `: ${message}` : ''}`);
+  }
+  const choices = (data.Response && data.Response.Choices) || data.Choices || [];
+  const content = choices[0] && choices[0].Message && choices[0].Message.Content;
+  return parseJsonContent(content || '');
+}
+
+async function callHunyuanTextJson(prompt) {
+  if (HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey) {
+    return callTencentCloudHunyuanText(prompt);
+  }
+  return callOpenAICompatibleHunyuanText(prompt);
 }
 
 function mapTagsToCategory(tags = [], hint = '') {
@@ -1183,14 +1356,15 @@ async function createNotification(userOpenid, type, content, itemId, actorOpenid
 }
 
 async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = {}) {
+  const safeItem = sanitizeFoundItemPrivacy(item);
   const ownerUser = await getUserByActorId(item.ownerOpenid);
   const ownerEmail = userEmail(ownerUser);
   if (!ownerEmail) return { sent: false, reason: 'OWNER_EMAIL_MISSING' };
 
   const claimantName = claimData.claimantName || userDisplayName(claimantUser);
   const claimantEmail = userEmail(claimantUser) || normalizeShanghaiTechEmail(claimData.claimantContact);
-  const title = item.title || '未命名物品';
-  const location = itemLocationText(item);
+  const title = safeItem.title || '未命名物品';
+  const location = itemLocationText(safeItem);
   const subject = `LockMyItem：你的招领物品「${title}」已被认领`;
   const text = [
     `你好，${userDisplayName(ownerUser)}：`,
@@ -1217,8 +1391,9 @@ async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = 
 
 async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) {
   if (foundItem.type !== 'found' || foundItem.status !== 'active') return [];
+  const safeFoundItem = sanitizeFoundItemPrivacy(foundItem);
   const finderEmail = userEmail(finderUser);
-  const finderName = userDisplayName(finderUser, foundItem.ownerName || '招领发布者');
+  const finderName = userDisplayName(finderUser, safeFoundItem.ownerName || '招领发布者');
   const result = await db.collection(COLLECTIONS.items)
     .where({ type: 'lost', status: 'active' })
     .orderBy('createdAt', 'desc')
@@ -1241,9 +1416,10 @@ async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) 
     const lostOwnerEmail = userEmail(lostOwner);
     if (!lostOwnerEmail) continue;
     const lostTitle = match.lostItem.title || '你的寻物线索';
-    const foundTitle = foundItem.title || '一件招领物品';
-    const location = itemLocationText(foundItem);
+    const foundTitle = safeFoundItem.title || '一件招领物品';
+    const location = itemLocationText(safeFoundItem);
     const reasonText = match.reasons.length ? match.reasons.join('、') : '物品特征相似';
+    const claimNotice = isProtectedFoundItem(safeFoundItem) ? '重要物品需先描述特征，通过后才能查看图片确认。' : '';
     const subject = `LockMyItem：可能找到你的「${lostTitle}」`;
     const text = [
       `你好，${userDisplayName(lostOwner)}：`,
@@ -1255,9 +1431,10 @@ async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) 
       `招领地点：${location}`,
       `招领发布者：${finderName}`,
       `发布者邮箱：${finderEmail || '未提供'}`,
+      claimNotice,
       '',
       '请回到 LockMyItem 查看详情并确认是否为你的物品。'
-    ].join('\n');
+    ].filter((line) => line !== '').join('\n');
     const html = `
       <p>你好，${escapeHtml(userDisplayName(lostOwner))}：</p>
       <p>有一条新的招领信息和你的寻物 <strong>「${escapeHtml(lostTitle)}」</strong> 相似度较高。</p>
@@ -1268,6 +1445,7 @@ async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) 
         <li>招领地点：${escapeHtml(location)}</li>
         <li>招领发布者：${escapeHtml(finderName)}</li>
         <li>发布者邮箱：${escapeHtml(finderEmail || '未提供')}</li>
+        ${claimNotice ? `<li>${escapeHtml(claimNotice)}</li>` : ''}
       </ul>
       <p>请回到 LockMyItem 查看详情并确认是否为你的物品。</p>
     `;
@@ -1312,13 +1490,15 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
 
   const sent = [];
   for (const match of matches) {
+    const safeFoundItem = sanitizeFoundItemPrivacy(match.foundItem);
     const foundOwner = await getUserByActorId(match.foundItem.ownerOpenid);
     const finderEmail = userEmail(foundOwner);
-    const finderName = userDisplayName(foundOwner, match.foundItem.ownerName || '招领发布者');
+    const finderName = userDisplayName(foundOwner, safeFoundItem.ownerName || '招领发布者');
     const lostTitle = lostItem.title || '你的寻物线索';
-    const foundTitle = match.foundItem.title || '一件招领物品';
-    const location = itemLocationText(match.foundItem);
+    const foundTitle = safeFoundItem.title || '一件招领物品';
+    const location = itemLocationText(safeFoundItem);
     const reasonText = match.reasons.length ? match.reasons.join('、') : '物品特征相似';
+    const claimNotice = isProtectedFoundItem(safeFoundItem) ? '重要物品需先描述特征，通过后才能查看图片确认。' : '';
     const subject = `LockMyItem：可能找到你的「${lostTitle}」`;
     const text = [
       `你好，${userDisplayName(lostOwner)}：`,
@@ -1330,9 +1510,10 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
       `招领地点：${location}`,
       `招领发布者：${finderName}`,
       `发布者邮箱：${finderEmail || '未提供'}`,
+      claimNotice,
       '',
       '请回到 LockMyItem 查看详情并确认是否为你的物品。'
-    ].join('\n');
+    ].filter((line) => line !== '').join('\n');
     const html = `
       <p>你好，${escapeHtml(userDisplayName(lostOwner))}：</p>
       <p>已有一条招领信息和你刚发布的寻物 <strong>「${escapeHtml(lostTitle)}」</strong> 相似度较高。</p>
@@ -1343,6 +1524,7 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
         <li>招领地点：${escapeHtml(location)}</li>
         <li>招领发布者：${escapeHtml(finderName)}</li>
         <li>发布者邮箱：${escapeHtml(finderEmail || '未提供')}</li>
+        ${claimNotice ? `<li>${escapeHtml(claimNotice)}</li>` : ''}
       </ul>
       <p>请回到 LockMyItem 查看详情并确认是否为你的物品。</p>
     `;
@@ -1362,6 +1544,304 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
     }
   }
   return sent;
+}
+
+function normalizeClaimDescription(value = '') {
+  return String(value || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, CLAIM_CONFIG.maxDescriptionLength);
+}
+
+function buildClaimVerificationPrompt(item = {}, description = '') {
+  const safeItem = sanitizeFoundItemPrivacy(item);
+  const context = {
+    title: safeItem.title || '',
+    description: safeItem.description || '',
+    category: safeItem.category || '',
+    tags: unique([
+      ...(safeItem.aiTags || []),
+      ...(safeItem.semanticTags || []),
+      ...(safeItem.yoloObjects || []),
+      ...(safeItem.tags || [])
+    ]).slice(0, 12),
+    visualDescription: safeItem.visualDescription || '',
+    location: itemLocationText(safeItem)
+  };
+  return [
+    '你是校园失物招领系统的认领描述核验助手。',
+    '任务：判断“认领人描述”是否与“招领物品公开信息”相符。',
+    '只比较颜色、类别、外观、配件、挂件、材质、地点、使用痕迹等非敏感特征。',
+    '不要要求、输出或复述完整卡号、身份证号、手机号、工号、学号、护照号或任何证件唯一编号。',
+    '如果描述过于笼统、只重复标题类别、或明显不匹配，应返回 uncertain 或 mismatch。',
+    '必须只返回 JSON，不要 Markdown，不要解释。',
+    'JSON 字段：decision, confidence, reason。',
+    'decision 只能是 match、uncertain、mismatch。',
+    'confidence 是 0 到 1 的数字。',
+    `招领物品公开信息：${JSON.stringify(context)}`,
+    `认领人描述：${description}`
+  ].join('\n');
+}
+
+function normalizeClaimModelDecision(raw = {}, fallbackReason = '') {
+  const decision = ['match', 'uncertain', 'mismatch'].includes(raw.decision) ? raw.decision : 'uncertain';
+  const confidence = Math.max(0, Math.min(1, Number(raw.confidence) || 0));
+  return {
+    decision,
+    confidence,
+    reason: cleanClaimField(raw.reason || fallbackReason || '需要发布者人工确认', '需要发布者人工确认', 160)
+  };
+}
+
+async function verifyClaimDescriptionWithModel(item = {}, description = '') {
+  if (!HUNYUAN_CONFIG.apiKey && !(HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey)) {
+    throw new Error('模型未配置');
+  }
+  const raw = await callHunyuanTextJson(buildClaimVerificationPrompt(item, description));
+  return normalizeClaimModelDecision(raw);
+}
+
+async function getLatestClaimRequest(itemId, claimantOpenid) {
+  const ready = await ensureClaimRequestCollection();
+  if (!ready) return null;
+  const result = await db.collection(COLLECTIONS.claimRequests)
+    .where({ itemId, claimantOpenid })
+    .orderBy('updatedAt', 'desc')
+    .limit(1)
+    .get();
+  return (result.data && result.data[0]) || null;
+}
+
+async function getApprovedClaimRequest(requestId, itemId, claimantOpenid) {
+  if (!requestId) return null;
+  const ready = await ensureClaimRequestCollection();
+  if (!ready) return null;
+  let request = null;
+  try {
+    const result = await db.collection(COLLECTIONS.claimRequests).doc(requestId).get();
+    request = result.data;
+  } catch (error) {
+    if (!isNotFoundError(error)) throw error;
+  }
+  if (!request) return null;
+  if (request.itemId !== itemId || request.claimantOpenid !== claimantOpenid || request.status !== 'approved') return null;
+  return { _id: requestId, ...request };
+}
+
+async function upsertPendingClaimRequest({ item, itemId, claimantOpenid, claimantUser, description, modelDecision, attemptCount, existingRequest }) {
+  const ready = await ensureClaimRequestCollection();
+  if (!ready) throw new Error('认领请求存储未就绪，请先创建 claim_requests 集合');
+  const data = {
+    itemId,
+    itemTitle: sanitizeFoundItemPrivacy(item).title || '一件招领物品',
+    ownerOpenid: item.ownerOpenid,
+    claimantOpenid,
+    claimantName: userDisplayName(claimantUser, '网页用户'),
+    claimantContact: userEmail(claimantUser),
+    description,
+    status: 'pending_review',
+    modelDecision,
+    attemptCount,
+    updatedAt: now()
+  };
+
+  if (existingRequest && existingRequest.status === 'pending_review' && existingRequest._id) {
+    await db.collection(COLLECTIONS.claimRequests).doc(existingRequest._id).update({ data });
+    return { ...existingRequest, ...data };
+  }
+
+  const created = await db.collection(COLLECTIONS.claimRequests).add({
+    data: {
+      ...data,
+      createdAt: now()
+    }
+  });
+  return { _id: created._id, ...data };
+}
+
+async function listPendingClaimRequests(itemId) {
+  const ready = await ensureClaimRequestCollection();
+  if (!ready) return [];
+  const result = await db.collection(COLLECTIONS.claimRequests)
+    .where({ itemId, status: 'pending_review' })
+    .orderBy('updatedAt', 'desc')
+    .limit(20)
+    .get();
+  return result.data || [];
+}
+
+async function completeClaim({ itemId, item, claimantOpenid, claimantUser = {}, claimantName = '', claimantContact = '', notifyOwner = true }) {
+  const cleanName = cleanClaimField(claimantName || claimantUser.nickName, '网页用户', 40);
+  const cleanContact = cleanClaimField(userEmail(claimantUser) || claimantContact, '', 100);
+  const claimedAt = now();
+  const updateData = {
+    status: 'returned',
+    returnedAt: claimedAt,
+    claimedAt,
+    claimedByOpenid: claimantOpenid,
+    claimantName: cleanName,
+    claimantContact: cleanContact,
+    updatedAt: claimedAt
+  };
+
+  await db.collection(COLLECTIONS.items).doc(itemId).update({ data: updateData });
+
+  const commentData = {
+    itemId,
+    authorOpenid: claimantOpenid,
+    authorName: cleanName,
+    content: cleanContact ? `${cleanName} 已认领：${cleanContact}` : `${cleanName} 已认领`,
+    status: 'active',
+    createdAt: claimedAt
+  };
+  const comment = await db.collection(COLLECTIONS.comments).add({ data: commentData });
+  const safeItem = sanitizeFoundItemPrivacy(item);
+  await createNotification(item.ownerOpenid, 'claim', `${cleanName} 已认领：${safeItem.title}`, itemId, claimantOpenid);
+  if (notifyOwner) {
+    await notifyOwnerItemClaimed(item, claimantUser, { claimantName: cleanName, claimantContact: cleanContact }).catch((error) => {
+      console.warn('Failed to send claim email notification.', error && (error.message || error));
+    });
+  }
+
+  const hydrated = await hydrateItemImages([{ _id: itemId, ...item, ...updateData }]);
+  return {
+    item: sanitizeFoundItemPrivacy(hydrated[0]),
+    comment: { _id: comment._id, ...commentData }
+  };
+}
+
+async function verifyClaimDescription(event, context) {
+  const actor = requireActorId(context, event);
+  if (actor.error) return actor.error;
+  if (!event.itemId) return fail('缺少 itemId');
+  const description = normalizeClaimDescription(event.description);
+  if (description.length < CLAIM_CONFIG.minDescriptionLength) {
+    return fail(`请至少输入 ${CLAIM_CONFIG.minDescriptionLength} 个字的物品特征描述`, 'DESCRIPTION_REQUIRED');
+  }
+
+  const itemResult = await db.collection(COLLECTIONS.items).doc(event.itemId).get();
+  const item = itemResult.data;
+  if (!item) return fail('物品不存在', 'ITEM_NOT_FOUND');
+  if (item.type !== 'found') return fail('只能校验招领物品', 'INVALID_ITEM_TYPE');
+  if (item.status === 'returned') return fail('该物品已回家，不能重复认领', 'ALREADY_RETURNED');
+  if (item.ownerOpenid === actor.actorId) return fail('不能认领自己发布的物品', 'FORBIDDEN');
+
+  const safeItem = sanitizeFoundItemPrivacy(item);
+  if (!isProtectedFoundItem(safeItem)) {
+    return ok({
+      status: 'verified',
+      verified: true,
+      claimToken: createClaimToken(event.itemId, actor.actorId),
+      expiresInSeconds: Math.floor(CLAIM_CONFIG.tokenTtlMs / 1000),
+      modelDecision: { decision: 'match', confidence: 1, reason: '普通物品无需描述校验' }
+    });
+  }
+
+  const claimantUser = await getUserByActorId(actor.actorId);
+  const existingRequest = await getLatestClaimRequest(event.itemId, actor.actorId);
+  if (existingRequest && existingRequest.status === 'pending_review') {
+    return ok({
+      status: 'pending_review',
+      requestId: existingRequest._id,
+      modelDecision: existingRequest.modelDecision || {},
+      message: '已提交发布者人工确认'
+    });
+  }
+
+  const attemptCount = (existingRequest?.attemptCount || 0) + 1;
+  let modelDecision;
+  try {
+    modelDecision = await verifyClaimDescriptionWithModel(safeItem, description);
+  } catch (error) {
+    modelDecision = normalizeClaimModelDecision({}, error.message || '模型不可用，转人工确认');
+  }
+
+  if (modelDecision.decision === 'match' && modelDecision.confidence >= CLAIM_CONFIG.minModelConfidence) {
+    return ok({
+      status: 'verified',
+      verified: true,
+      claimToken: createClaimToken(event.itemId, actor.actorId),
+      expiresInSeconds: Math.floor(CLAIM_CONFIG.tokenTtlMs / 1000),
+      modelDecision
+    });
+  }
+
+  const request = await upsertPendingClaimRequest({
+    item,
+    itemId: event.itemId,
+    claimantOpenid: actor.actorId,
+    claimantUser,
+    description,
+    modelDecision,
+    attemptCount,
+    existingRequest
+  });
+  await createNotification(
+    item.ownerOpenid,
+    'claim_review',
+    `${request.claimantName} 提交了重要物品认领描述，等待你确认：${safeItem.title}`,
+    event.itemId,
+    actor.actorId
+  ).catch(() => null);
+
+  return ok({
+    status: 'pending_review',
+    requestId: request._id,
+    modelDecision,
+    message: '描述已提交发布者人工确认'
+  });
+}
+
+async function reviewClaimRequest(event, context) {
+  const actor = requireActorId(context, event);
+  if (actor.error) return actor.error;
+  const requestId = String(event.requestId || '').trim();
+  const action = String(event.decision || event.reviewAction || '').trim();
+  if (!requestId) return fail('缺少 requestId');
+  if (!['approve', 'reject'].includes(action)) return fail('缺少有效审核动作', 'INVALID_REVIEW_ACTION');
+  const ready = await ensureClaimRequestCollection();
+  if (!ready) return fail('认领请求存储未就绪，请先创建 claim_requests 集合', 'CLAIM_REQUEST_STORE_ERROR');
+
+  const requestResult = await db.collection(COLLECTIONS.claimRequests).doc(requestId).get();
+  const request = requestResult.data;
+  if (!request) return fail('认领请求不存在', 'REQUEST_NOT_FOUND');
+  if (request.status !== 'pending_review') return fail('该认领请求已处理', 'REQUEST_ALREADY_REVIEWED');
+
+  const itemResult = await db.collection(COLLECTIONS.items).doc(request.itemId).get();
+  const item = itemResult.data;
+  if (!item) return fail('物品不存在', 'ITEM_NOT_FOUND');
+  if (item.ownerOpenid !== actor.actorId) return fail('只能处理自己发布物品的认领请求', 'FORBIDDEN');
+  if (item.status === 'returned') return fail('该物品已回家，不能重复认领', 'ALREADY_RETURNED');
+
+  const reviewData = {
+    status: action === 'approve' ? 'approved' : 'rejected',
+    reviewerOpenid: actor.actorId,
+    reviewedAt: now(),
+    updatedAt: now()
+  };
+  await db.collection(COLLECTIONS.claimRequests).doc(requestId).update({ data: reviewData });
+
+  if (action === 'reject') {
+    await createNotification(request.claimantOpenid, 'claim_review', `发布者未通过你的认领描述：${sanitizeFoundItemPrivacy(item).title}`, request.itemId, actor.actorId).catch(() => null);
+    return ok({ request: { _id: requestId, ...request, ...reviewData } });
+  }
+
+  const claimantUser = await getUserByActorId(request.claimantOpenid);
+  const result = await completeClaim({
+    itemId: request.itemId,
+    item,
+    claimantOpenid: request.claimantOpenid,
+    claimantUser,
+    claimantName: request.claimantName,
+    claimantContact: request.claimantContact,
+    notifyOwner: false
+  });
+  await createNotification(request.claimantOpenid, 'claim_review', `发布者已通过你的认领描述：${sanitizeFoundItemPrivacy(item).title}`, request.itemId, actor.actorId).catch(() => null);
+  return ok({
+    request: { _id: requestId, ...request, ...reviewData },
+    ...result
+  });
 }
 
 async function login(event, context) {
@@ -1416,7 +1896,8 @@ async function classifyImage(event, context) {
     imageUrl,
     fileId: event.fileId || '',
     hint: event.hint || '',
-    purpose: event.purpose || 'item'
+    purpose: event.purpose || 'item',
+    itemType: event.itemType || event.type || ''
   };
   let semantic;
   try {
@@ -1433,8 +1914,10 @@ async function classifyImage(event, context) {
   const category = semantic.category || mapTagsToCategory(aiTags, event.hint || semantic.description);
   const visualDescription = semantic.description || aiTags.join('、');
 
-  return ok({
+  const data = sanitizeFoundItemPrivacy({
+    type: event.itemType || event.type || '',
     title: semantic.title || category,
+    description: visualDescription,
     category,
     aiTags,
     yoloObjects: semantic.objects,
@@ -1448,6 +1931,7 @@ async function classifyImage(event, context) {
       model: HUNYUAN_CONFIG.model
     }
   });
+  return ok(data);
 }
 
 async function createItem(event, context) {
@@ -1472,7 +1956,7 @@ async function createItem(event, context) {
     ? { category: payload.category, aiTags: payload.aiTags || [] }
     : classifyByText(`${payload.title} ${payload.description || ''}`);
   const title = (payload.title || '').trim() || classification.category || '未命名物品';
-  const data = {
+  const data = sanitizeFoundItemPrivacy({
     type: payload.type || 'found',
     title,
     description: payload.description || '',
@@ -1501,7 +1985,7 @@ async function createItem(event, context) {
     ownerName: payload.ownerName || '网页用户',
     createdAt: now(),
     updatedAt: now()
-  };
+  });
   const created = await db.collection(COLLECTIONS.items).add({ data });
   const hydrated = await hydrateItemImages([{ _id: created._id, ...data }]);
   if (data.type === 'found') {
@@ -1520,7 +2004,7 @@ async function createItem(event, context) {
 
 async function listItems(event) {
   const filters = event.filters || {};
-  const canSeeClaimant = canSeeClaimantInfo(event);
+  const actorId = getActorId({}, event);
   const query = { status: filters.status || 'active' };
   if (filters.type) query.type = filters.type;
   if (filters.category && filters.category !== '全部') query.category = filters.category;
@@ -1531,21 +2015,27 @@ async function listItems(event) {
     .skip(filters.cursor || 0)
     .limit(filters.limit || 20)
     .get();
-  const items = (await hydrateItemImages(result.data)).map((item) => sanitizeClaimantInfo(item, canSeeClaimant));
+  const items = (await hydrateItemImages(result.data))
+    .map((item) => sanitizeItemForViewer(item, event, actorId));
   return ok({ items, nextCursor: (filters.cursor || 0) + result.data.length });
 }
 
 async function getItemDetail(event) {
-  const canSeeClaimant = canSeeClaimantInfo(event);
+  const actorId = getActorId({}, event);
   const item = await db.collection(COLLECTIONS.items).doc(event.itemId).get();
   const comments = await db.collection(COLLECTIONS.comments)
     .where({ itemId: event.itemId, status: 'active' })
     .orderBy('createdAt', 'asc')
     .get();
   const items = await hydrateItemImages([item.data]);
+  const visibleItem = sanitizeItemForViewer(items[0], event, actorId);
+  const claimRequests = itemBelongsToActor(items[0], actorId) && isProtectedFoundItem(sanitizeFoundItemPrivacy(items[0]))
+    ? await listPendingClaimRequests(event.itemId)
+    : [];
   return ok({
-    item: sanitizeClaimantInfo(items[0], canSeeClaimant),
-    comments: sanitizeCommentsForViewer(comments.data, canSeeClaimant)
+    item: visibleItem,
+    comments: sanitizeCommentsForViewer(comments.data, canSeeClaimantInfo(event)),
+    claimRequests
   });
 }
 
@@ -1567,7 +2057,8 @@ async function createComment(event, context) {
   };
   const created = await db.collection(COLLECTIONS.comments).add({ data });
   if (item.ownerOpenid !== actor.actorId) {
-    await createNotification(item.ownerOpenid, 'comment', `${data.authorName} 评论了你的帖子：${item.title}`, event.itemId, actor.actorId);
+    const safeItem = sanitizeFoundItemPrivacy(item);
+    await createNotification(item.ownerOpenid, 'comment', `${data.authorName} 评论了你的帖子：${safeItem.title}`, event.itemId, actor.actorId);
   }
   return ok({ _id: created._id, ...data });
 }
@@ -1631,42 +2122,24 @@ async function claimItem(event, context) {
   if (item.status === 'returned') return fail('该物品已回家，不能重复认领', 'ALREADY_RETURNED');
   if (item.ownerOpenid === actor.actorId) return fail('不能认领自己发布的物品', 'FORBIDDEN');
 
+  if (isProtectedFoundItem(sanitizeFoundItemPrivacy(item))) {
+    const tokenPayload = verifyClaimToken(event.claimToken, event.itemId, actor.actorId);
+    const approvedRequest = tokenPayload ? null : await getApprovedClaimRequest(event.requestId, event.itemId, actor.actorId);
+    if (!tokenPayload && !approvedRequest) {
+      return fail('重要物品需先提交特征描述，通过后才能认领', 'CLAIM_VERIFICATION_REQUIRED');
+    }
+  }
+
   const claimantUser = await getUserByActorId(actor.actorId);
-  const claimantEmail = userEmail(claimantUser);
-  const claimantName = cleanClaimField(event.claimantName || claimantUser?.nickName || event.nickName, '网页用户', 40);
-  const claimantContact = cleanClaimField(claimantEmail || event.claimantContact || event.contact, '', 100);
-  const claimedAt = now();
-  const updateData = {
-    status: 'returned',
-    returnedAt: claimedAt,
-    claimedAt,
-    claimedByOpenid: actor.actorId,
-    claimantName,
-    claimantContact,
-    updatedAt: claimedAt
-  };
-
-  await db.collection(COLLECTIONS.items).doc(event.itemId).update({ data: updateData });
-
-  const commentData = {
+  return ok(await completeClaim({
     itemId: event.itemId,
-    authorOpenid: actor.actorId,
-    authorName: claimantName,
-    content: claimantContact ? `${claimantName} 已认领：${claimantContact}` : `${claimantName} 已认领`,
-    status: 'active',
-    createdAt: claimedAt
-  };
-  const comment = await db.collection(COLLECTIONS.comments).add({ data: commentData });
-  await createNotification(item.ownerOpenid, 'claim', `${claimantName} 已认领：${item.title}`, event.itemId, actor.actorId);
-  await notifyOwnerItemClaimed(item, claimantUser, { claimantName, claimantContact }).catch((error) => {
-    console.warn('Failed to send claim email notification.', error && (error.message || error));
-  });
-
-  const hydrated = await hydrateItemImages([{ _id: event.itemId, ...item, ...updateData }]);
-  return ok({
-    item: hydrated[0],
-    comment: { _id: comment._id, ...commentData }
-  });
+    item,
+    claimantOpenid: actor.actorId,
+    claimantUser,
+    claimantName: event.claimantName || event.nickName,
+    claimantContact: event.claimantContact || event.contact,
+    notifyOwner: true
+  }));
 }
 
 async function reportContent(event, context) {
@@ -1712,6 +2185,10 @@ exports.main = async (event = {}) => {
         return await listLocations(event);
       case 'createComment':
         return await createComment(event, context);
+      case 'verifyClaimDescription':
+        return await verifyClaimDescription(event, context);
+      case 'reviewClaimRequest':
+        return await reviewClaimRequest(event, context);
       case 'sendThanks':
         return await sendThanks(event, context);
       case 'claimItem':

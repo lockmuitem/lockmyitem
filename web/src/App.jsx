@@ -17,12 +17,15 @@ import {
   loginWithEmailCode,
   loginWithEmailPassword,
   registerWithEmail,
+  reviewCloudClaimRequest,
   saveItems,
   saveUser,
   sendEmailCode,
   setCloudReturnStatus,
-  updateUserNickname
+  updateUserNickname,
+  verifyClaimDescription
 } from './store.js';
+import { isProtectedFoundItem, sanitizeFoundItemPrivacy, sensitivityBadgeText } from './privacy.js';
 import { classifyByText, findPotentialMatches, formatDate, getLocation, semanticSearchItems } from './utils.js';
 import { recognizeImageFile } from './vision.js';
 import campusBoardImage from './assets/notice/campus-board.jpg';
@@ -45,6 +48,27 @@ const tabItems = [
 const SCHOOL_EMAIL_DOMAIN = 'shanghaitech.edu.cn';
 const EMAIL_CODE_COOLDOWN_SECONDS = 30;
 const LOCATION_DETAIL_HINT = '可补充入口、楼层、靠窗/靠路侧、附近标志物等细节。';
+const VIEW_STORAGE_KEY = 'lockmyitem_web_last_view';
+const SAVED_VIEWS = ['found', 'lost', 'returned', 'me'];
+
+function loadSavedView() {
+  if (typeof window === 'undefined') return 'found';
+  try {
+    const saved = window.localStorage?.getItem(VIEW_STORAGE_KEY);
+    return SAVED_VIEWS.includes(saved) ? saved : 'found';
+  } catch {
+    return 'found';
+  }
+}
+
+function saveCurrentView(view) {
+  if (typeof window === 'undefined' || !SAVED_VIEWS.includes(view)) return;
+  try {
+    window.localStorage?.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // Ignore storage failures; navigation should still work.
+  }
+}
 
 function normalizedIdentity(value) {
   return String(value || '').trim().toLowerCase();
@@ -155,12 +179,14 @@ function locationDetailFromRecognition(data = {}, location) {
 function App() {
   const [items, setItems] = useState(() => loadItems());
   const [currentUser, setCurrentUser] = useState(() => loadUser());
-  const [view, setView] = useState('found');
+  const [view, setView] = useState(() => loadSavedView());
   const [activeCategory, setActiveCategory] = useState('全部');
   const [selectedId, setSelectedId] = useState(null);
   const [detailReturnTarget, setDetailReturnTarget] = useState(null);
   const [publishDraft, setPublishDraft] = useState(null);
   const [commentsByItem, setCommentsByItem] = useState({});
+  const [claimRequestsByItem, setClaimRequestsByItem] = useState({});
+  const [claimAccessByItem, setClaimAccessByItem] = useState({});
   const [syncing, setSyncing] = useState(false);
   const [claimingItemId, setClaimingItemId] = useState(null);
   const [toast, setToast] = useState('');
@@ -173,13 +199,17 @@ function App() {
   }, [items]);
 
   useEffect(() => {
+    saveCurrentView(view);
+  }, [view]);
+
+  useEffect(() => {
     let cancelled = false;
     setSyncing(true);
     loadCloudItems()
       .then((cloudItems) => {
         if (cancelled) return;
         setItems(cloudItems);
-        setToast('已同步云端公告栏');
+        setToast('已更新最近的失物招领/寻物记录');
       })
       .catch((error) => {
         if (cancelled) return;
@@ -201,13 +231,15 @@ function App() {
       return undefined;
     }
     let cancelled = false;
-    loadCloudItemDetail(selectedId)
-      .then(({ item, comments }) => {
+    const claimToken = claimAccessByItem[selectedId]?.claimToken || '';
+    loadCloudItemDetail(selectedId, claimToken)
+      .then(({ item, comments, claimRequests }) => {
         if (cancelled) return;
         if (item) {
           setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, ...item } : entry)));
         }
         setCommentsByItem((current) => ({ ...current, [selectedId]: comments }));
+        setClaimRequestsByItem((current) => ({ ...current, [selectedId]: claimRequests || [] }));
       })
       .catch((error) => {
         if (cancelled) return;
@@ -220,7 +252,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [view, selectedId]);
+  }, [view, selectedId, claimAccessByItem]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -278,6 +310,22 @@ function App() {
       return;
     }
     setAuthPrompt({ actionLabel, onAuthed, onCancel });
+  }
+
+  function runWithAuth(actionLabel, handler) {
+    return new Promise((resolve, reject) => {
+      requireAuth(
+        actionLabel,
+        async (user) => {
+          try {
+            resolve(await handler(user));
+          } catch (error) {
+            reject(error);
+          }
+        },
+        () => resolve({ cancelled: true })
+      );
+    });
   }
 
   function openAuthPanel() {
@@ -338,6 +386,8 @@ function App() {
   }
 
   async function publishItem(payload) {
+    const privacyMasked = payload.type === 'found'
+      && (payload.sensitivityReasons || []).some((reason) => reason.includes('隐藏'));
     const nextPayload = {
       ...payload,
       ownerName: currentUser?.nickName || payload.ownerName,
@@ -360,16 +410,22 @@ function App() {
     setActiveCategory('全部');
     setView(payload.type === 'lost' ? 'lost' : 'found');
     if (cloudSynced) {
-      setToast(payload.type === 'lost' ? '已同步发布寻物' : '已同步发布招领');
+      setToast(payload.type === 'lost' ? '已同步发布寻物' : (privacyMasked ? '已同步发布招领，敏感信息已隐藏' : '已同步发布招领'));
     } else {
-      setToast('云端发布失败，已暂存本机');
+      setToast(privacyMasked ? '云端发布失败，已脱敏暂存本机' : '云端发布失败，已暂存本机');
     }
   }
 
   function submitClaim(item) {
     if (claimingItemId) return;
+    const claimAccess = claimAccessByItem[item.id] || {};
+    const protectedClaim = isProtectedFoundItem(item);
     if (itemBelongsToCurrentUser(item, currentUser, currentClientId)) {
       setToast('不能认领自己发布的招领物品');
+      return;
+    }
+    if (protectedClaim && item.claimImageLocked && !claimAccess.claimToken && !claimAccess.requestId) {
+      setToast('请先描述物品特征，通过后再查看图片确认');
       return;
     }
     requireAuth('认领物品', async (user) => {
@@ -398,7 +454,7 @@ function App() {
         ]
       };
       try {
-        const { item: claimedItem, comment } = await claimCloudItem(item.id, user);
+        const { item: claimedItem, comment } = await claimCloudItem(item.id, user, claimAccess);
         const nextItem = claimedItem || fallbackItem;
         setItems((current) => current.map((entry) => (entry.id === item.id ? nextItem : entry)));
         if (comment) {
@@ -410,7 +466,7 @@ function App() {
         setToast('认领成功，物品已移入已找到');
       } catch (error) {
         const message = cloudErrorMessage(error);
-        if (/自己发布|FORBIDDEN|ALREADY_RETURNED|已回家|重复认领/.test(message)) {
+        if (protectedClaim || /自己发布|FORBIDDEN|ALREADY_RETURNED|CLAIM_VERIFICATION_REQUIRED|已回家|重复认领|先提交特征描述/.test(message)) {
           setToast(message);
           return;
         }
@@ -424,6 +480,69 @@ function App() {
         setClaimingItemId(null);
       }
     });
+  }
+
+  async function verifyClaimForItem(item, description) {
+    return runWithAuth('认领物品', async (user) => {
+      if (itemBelongsToCurrentUser(item, user, currentClientId)) {
+        setToast('不能认领自己发布的招领物品');
+        return { status: 'forbidden' };
+      }
+      const result = await verifyClaimDescription(item.id, description);
+      if (result.status === 'verified' && result.claimToken) {
+        setClaimAccessByItem((current) => ({
+          ...current,
+          [item.id]: {
+            claimToken: result.claimToken,
+            verifiedAt: new Date().toISOString()
+          }
+        }));
+        const detail = await loadCloudItemDetail(item.id, result.claimToken);
+        if (detail.item) {
+          setItems((current) => current.map((entry) => (entry.id === detail.item.id ? { ...entry, ...detail.item } : entry)));
+        }
+        setCommentsByItem((current) => ({ ...current, [item.id]: detail.comments || [] }));
+        setClaimRequestsByItem((current) => ({ ...current, [item.id]: detail.claimRequests || [] }));
+        setToast('描述已通过，请查看图片后确认认领');
+        return result;
+      }
+      if (result.status === 'pending_review') {
+        setClaimAccessByItem((current) => ({
+          ...current,
+          [item.id]: {
+            requestId: result.requestId,
+            pendingReviewAt: new Date().toISOString()
+          }
+        }));
+        setToast('已提交发布者人工确认');
+        return result;
+      }
+      return result;
+    });
+  }
+
+  async function reviewClaimForItem(requestId, decision) {
+    try {
+      const { item, comment, request } = await reviewCloudClaimRequest(requestId, decision);
+      if (item) {
+        setItems((current) => current.map((entry) => (entry.id === item.id ? item : entry)));
+      }
+      if (comment) {
+        setCommentsByItem((current) => ({
+          ...current,
+          [comment.itemId]: [...(current[comment.itemId] || []), comment]
+        }));
+      }
+      if (request) {
+        setClaimRequestsByItem((current) => ({
+          ...current,
+          [request.itemId]: (current[request.itemId] || []).filter((entry) => entry.id !== request.id)
+        }));
+      }
+      setToast(decision === 'approve' ? '已通过认领请求，物品已移入已找到' : '已拒绝认领请求');
+    } catch (error) {
+      setToast(`处理认领请求失败：${cloudErrorMessage(error)}`);
+    }
   }
 
   async function handleAuthSubmit(authPayload) {
@@ -624,11 +743,14 @@ function App() {
           item={selectedItem}
           items={items}
           comments={commentsByItem[selectedItem.id] || []}
+          claimRequests={claimRequestsByItem[selectedItem.id] || []}
           onBack={backFromDetail}
           claiming={claimingItemId === selectedItem.id}
           currentUser={currentUser}
           isOwnItem={itemBelongsToCurrentUser(selectedItem, currentUser, currentClientId)}
           onClaim={() => submitClaim(selectedItem)}
+          onVerifyClaim={(description) => verifyClaimForItem(selectedItem, description)}
+          onReviewClaim={reviewClaimForItem}
           onMarkReturned={() => markReturned(selectedItem.id)}
           onUndoReturned={() => undoReturned(selectedItem.id)}
           onComment={(content) => submitComment(selectedItem, content)}
@@ -791,6 +913,7 @@ function ReturnedPage({ items, total, onOpen, currentUser }) {
                 <span className="badge">已回家</span>
                 <span className="item-copy">
                   <strong className="title">{item.title}</strong>
+                  <SensitivityBadge item={item} />
                   <span className="meta">{item.category}{locationText(item) ? ` · ${locationText(item)}` : ''}</span>
                   {claimant && <span className="meta claimed-meta">{claimant}</span>}
                 </span>
@@ -919,6 +1042,7 @@ function MePage({ items, stats, currentUser, onPublish, onOpen, onMarkReturned, 
               <span className="status-text">{item.status === 'returned' ? '已回家' : '进行中'}</span>
             </span>
             <strong className="title">{item.title}</strong>
+            <SensitivityBadge item={item} />
             <span className="meta">{itemMeta(item, Boolean(currentUser))}</span>
           </button>
           {item.status === 'active' ? (
@@ -981,6 +1105,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
   const [locationQuery, setLocationQuery] = useState('');
   const [locationImageStatus, setLocationImageStatus] = useState('');
   const [locationImageMessage, setLocationImageMessage] = useState('');
+  const [privacyNotice, setPrivacyNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -1022,6 +1147,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
   }, [form.locationId, locationQuery]);
 
   function update(field, value) {
+    if (['title', 'description', 'type'].includes(field)) setPrivacyNotice('');
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -1071,7 +1197,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
     setAiProcessStage('recognizing');
     setAiExtractedText('');
     try {
-      const result = await recognizeImageFile(file, recognitionHint());
+      const result = await recognizeImageFile(file, recognitionHint(), { itemType: form.type });
       const data = result.data || {};
       const nextExtractedText = extractedText(data);
       const nextTitle = suggestedTitle(data);
@@ -1086,7 +1212,10 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
         rawPredictions: data.rawPredictions || []
       }));
       setAiExtractedText(nextExtractedText);
-      setAiProcessStage('matching');
+      setAiProcessStage('done');
+      if (form.type === 'found' && (data.sensitivityReasons || []).some((reason) => reason.includes('隐藏'))) {
+        setPrivacyNotice('识别结果中的敏感编号已自动隐藏');
+      }
       if (result.warning) setModelError(result.warning);
     } catch (error) {
       setModelError(`图片识别失败：${error.message || '请手动填写或重新上传'}`);
@@ -1145,9 +1274,19 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
   async function submit(event) {
     event.preventDefault();
     if (submitting || !hasSelectedLocation) return;
+    const safeForm = sanitizeFoundItemPrivacy(form);
+    const masked = safeForm.type === 'found' && (
+      safeForm.title !== form.title
+      || safeForm.description !== form.description
+      || safeForm.visualDescription !== form.visualDescription
+    );
+    if (masked) {
+      setForm(safeForm);
+      setPrivacyNotice('已自动隐藏卡号、证件号或手机号等敏感信息');
+    }
     setSubmitting(true);
     try {
-      await onSubmit(form);
+      await onSubmit(safeForm);
     } finally {
       setSubmitting(false);
     }
@@ -1194,14 +1333,12 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
           <input type="file" accept="image/*" onChange={(event) => chooseImage(event.target.files?.[0])} />
         </label>
 
-        {(classifying || aiProcessStage !== 'idle' || modelError || form.visualDescription) && (
+        {(classifying || modelError) && (
           <RecognitionPanel
             classifying={classifying}
             stage={aiProcessStage}
             extractedText={aiExtractedText}
-            type={form.type}
             error={modelError}
-            visualDescription={form.visualDescription}
           />
         )}
 
@@ -1209,6 +1346,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
           <span className="section-kicker">物品信息</span>
           <input className="field" placeholder="物品标题，可不填" value={form.title} onChange={(event) => update('title', event.target.value)} />
           <textarea className="field textarea" placeholder="补充描述，可不填" value={form.description} onChange={(event) => update('description', event.target.value)} />
+          {privacyNotice && <div className="privacy-notice">{privacyNotice}</div>}
         </div>
 
         <div className="form-section">
@@ -1314,6 +1452,7 @@ function PublishPage({ initialType, initialDraft, items, currentUser, onCancel, 
               <div key={item.id} className="match-item">
                 <div>
                   <strong className="match-name">{item.title}</strong>
+                  <SensitivityBadge item={item} />
                   <span className="match-meta">{locationText(item)} · 相似度 {item.similarity}%</span>
                   <span className="match-reason">{item.reasons.join('、')}</span>
                 </div>
@@ -1558,25 +1697,19 @@ function PwaInstallGuide({ onClose }) {
   );
 }
 
-function RecognitionPanel({ classifying, stage, extractedText, type, error, visualDescription }) {
-  const target = type === 'lost' ? '历史招领' : '历史寻物';
+function RecognitionPanel({ classifying, stage, extractedText, error }) {
   const steps = stage === 'error'
     ? [{ key: 'error', text: '图片识别失败，可手动填写或重新上传', status: 'error' }]
     : [
       {
         key: 'recognize',
         text: '正在识别物品特征',
-        status: stage === 'recognizing' ? 'active' : 'done'
+        status: classifying || stage === 'recognizing' ? 'active' : 'done'
       },
       {
         key: 'extract',
         text: extractedText ? `已提取：${extractedText}` : '等待提取颜色、类别和细节',
         status: extractedText ? 'done' : 'pending'
-      },
-      {
-        key: 'match',
-        text: `正在匹配${target}`,
-        status: stage === 'matching' ? 'active' : 'pending'
       }
     ];
 
@@ -1592,7 +1725,6 @@ function RecognitionPanel({ classifying, stage, extractedText, type, error, visu
           <span className="ai-step-text">{step.text}</span>
         </div>
       ))}
-      {visualDescription && <p className="model-desc">{visualDescription}</p>}
       {error && <p className={stage === 'error' ? 'model-error' : 'model-warning'}>{error}</p>}
     </div>
   );
@@ -1801,13 +1933,19 @@ function AuthModal({ actionLabel, onClose, onSubmit, onSendCode }) {
   );
 }
 
-function DetailPage({ item, items, comments = [], onBack, claiming = false, currentUser, isOwnItem = false, onClaim, onComment, onOpenMatch }) {
+function DetailPage({ item, items, comments = [], claimRequests = [], onBack, claiming = false, currentUser, isOwnItem = false, onClaim, onVerifyClaim, onReviewClaim, onComment, onOpenMatch }) {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [claimDescription, setClaimDescription] = useState('');
+  const [claimVerifyMessage, setClaimVerifyMessage] = useState('');
+  const [verifyingClaim, setVerifyingClaim] = useState(false);
+  const [reviewingRequestId, setReviewingRequestId] = useState('');
   const matches = findPotentialMatches(item, items);
   const canSeeClaimant = Boolean(currentUser);
   const claimant = claimantText(item, canSeeClaimant);
   const visibleComments = canSeeClaimant ? comments : comments.filter((comment) => !isClaimantComment(comment));
+  const protectedClaim = isProtectedFoundItem(item);
+  const imageLocked = protectedClaim && item.claimImageLocked && !isOwnItem;
   const statusLabel = item.status === 'returned'
     ? '已回家'
     : item.type === 'lost'
@@ -1830,18 +1968,60 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, curr
     setSubmittingComment(false);
   }
 
+  async function submitClaimDescription(event) {
+    event.preventDefault();
+    const description = claimDescription.trim();
+    if (!description || verifyingClaim) return;
+    setVerifyingClaim(true);
+    setClaimVerifyMessage('');
+    try {
+      const result = await onVerifyClaim(description);
+      if (result?.cancelled) return;
+      if (result?.status === 'verified') {
+        setClaimVerifyMessage('描述已通过，请查看图片后确认认领。');
+      } else if (result?.status === 'pending_review') {
+        setClaimVerifyMessage('模型未直接通过，已提交发布者人工确认。');
+      } else if (result?.status === 'forbidden') {
+        setClaimVerifyMessage('不能认领自己发布的物品。');
+      } else {
+        setClaimVerifyMessage('描述已提交，请根据页面提示继续。');
+      }
+    } catch (error) {
+      setClaimVerifyMessage(cloudErrorMessage(error));
+    } finally {
+      setVerifyingClaim(false);
+    }
+  }
+
+  async function reviewRequest(requestId, decision) {
+    if (!requestId || reviewingRequestId) return;
+    setReviewingRequestId(requestId);
+    await onReviewClaim(requestId, decision);
+    setReviewingRequestId('');
+  }
+
   return (
     <section className="page detail-page">
       <button className="back-button" type="button" onClick={onBack}>返回</button>
 
-      <div className="detail-image">
-        {item.image ? <img src={item.image} alt="" /> : <span>{item.category}</span>}
+      <div className={`detail-image ${imageLocked ? 'locked' : ''}`}>
+        {imageLocked ? (
+          <span className="protected-image-placeholder">
+            <strong>{item.category || '重要物品'}</strong>
+            <span>先描述物品特征，通过后查看图片确认</span>
+          </span>
+        ) : (
+          item.image ? <img src={item.image} alt="" /> : <span>{item.category}</span>
+        )}
       </div>
 
       <div className="card detail-card">
         <div className="detail-head">
           <div className="title-block">
-            <span className="detail-kicker">{item.type === 'lost' ? '寻物详情' : '招领详情'}</span>
+            <span className="detail-kicker-row">
+              <span className="detail-kicker">{item.type === 'lost' ? '寻物详情' : '招领详情'}</span>
+              <SensitivityBadge item={item} />
+            </span>
             <h1 className="title">{item.title}</h1>
           </div>
           <span className={`type-pill ${item.status === 'returned' ? 'returned' : item.type}`}>
@@ -1875,12 +2055,54 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, curr
         )}
       </div>
 
-      {item.type === 'found' && item.status === 'active' && (
+      {item.type === 'found' && item.status === 'active' && imageLocked && (
+        <form className="claim-verify-card" onSubmit={submitClaimDescription}>
+          <span className="section-kicker">认领前确认</span>
+          <strong>请先描述物品特征</strong>
+          <p>不要填写完整卡号、身份证号、手机号等敏感信息。可描述颜色、外观、挂件、材质、遗失地点或使用痕迹。</p>
+          <textarea
+            className="field textarea"
+            value={claimDescription}
+            placeholder="例如：黑色钱包，内有蓝色卡套；或钥匙上有红色圆形挂件"
+            onChange={(event) => setClaimDescription(event.target.value)}
+          />
+          {claimVerifyMessage && <div className="privacy-notice">{claimVerifyMessage}</div>}
+          <button className="button-primary detail-claim-button" type="submit" disabled={verifyingClaim || !claimDescription.trim()}>
+            {verifyingClaim ? '判断中' : '提交描述'}
+          </button>
+        </form>
+      )}
+
+      {item.type === 'found' && item.status === 'active' && !imageLocked && (
         <div className="detail-action-row">
           <button className="button-primary detail-claim-button" type="button" onClick={onClaim} disabled={claiming || isOwnItem}>
-            {isOwnItem ? '自己的招领不可认领' : (claiming ? '认领中' : '我要认领')}
+            {isOwnItem ? '自己的招领不可认领' : (claiming ? '认领中' : (protectedClaim ? '确认认领' : '我要认领'))}
           </button>
         </div>
+      )}
+
+      {isOwnItem && claimRequests.length > 0 && (
+        <>
+          <h2 className="section-title">待确认认领</h2>
+          <div className="claim-review-list">
+            {claimRequests.map((request) => (
+              <div className="claim-review-card" key={request.id}>
+                <div className="comment-head">
+                  <strong>{request.claimantName}</strong>
+                  <span>{request.updatedAt ? formatDate(request.updatedAt) : ''}</span>
+                </div>
+                <p>{request.description}</p>
+                {request.modelDecision?.reason && (
+                  <span className="claim-review-reason">模型判断：{request.modelDecision.reason}</span>
+                )}
+                <div className="claim-review-actions">
+                  <button type="button" className="button-secondary" disabled={reviewingRequestId === request.id} onClick={() => reviewRequest(request.id, 'reject')}>拒绝</button>
+                  <button type="button" className="button-primary" disabled={reviewingRequestId === request.id} onClick={() => reviewRequest(request.id, 'approve')}>通过并归还</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {matches.length > 0 && (
@@ -1897,6 +2119,7 @@ function DetailPage({ item, items, comments = [], onBack, claiming = false, curr
                 <span className="badge">{match.similarity}%</span>
                 <span className="item-copy">
                   <strong className="title">{match.title}</strong>
+                  <SensitivityBadge item={match} />
                   <span className="meta">{match.reasons.join('、')}</span>
                 </span>
               </button>
@@ -1951,6 +2174,12 @@ function CategoryBar({ value, onChange, hideAll = false, tone = 'found' }) {
   );
 }
 
+function SensitivityBadge({ item }) {
+  const label = sensitivityBadgeText(item);
+  if (!label) return null;
+  return <span className={`sensitivity-badge ${item.sensitivityLevel || 'normal'}`}>{label}</span>;
+}
+
 function SemanticSearchBox({ value, onChange, tone = 'found', placeholder }) {
   const active = value.trim().length > 0;
   return (
@@ -1978,10 +2207,11 @@ function FeedPanel({ items, allItems = items, kind, onOpen }) {
         const statusLabel = kind === 'lost'
           ? (findPotentialMatches(item, allItems).length > 0 ? '匹配' : '暂无匹配')
           : '招领中';
+        const imageLocked = item.claimImageLocked && isProtectedFoundItem(item);
         return (
           <button key={item.id} className="item-row" type="button" onClick={() => onOpen(item.id)}>
-            <span className={`image-box ${kind}`}>
-              {item.image ? <img src={item.image} alt="" /> : <span>{item.category}</span>}
+            <span className={`image-box ${kind} ${imageLocked ? 'locked' : ''}`}>
+              {imageLocked ? <span>需验证</span> : (item.image ? <img src={item.image} alt="" /> : <span>{item.category}</span>)}
             </span>
             <span className="item-main">
               <span className="item-head">
@@ -1994,6 +2224,7 @@ function FeedPanel({ items, allItems = items, kind, onOpen }) {
                   <span className={`pin-dot ${kind === 'lost' ? 'lost' : ''}`} />
                   <span>{locationText(item)}</span>
                   <span className="tag light">{item.category}</span>
+                  <SensitivityBadge item={item} />
                 </span>
                 <span className="item-time">{formatDate(item.createdAt)}</span>
               </span>

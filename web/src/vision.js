@@ -1,3 +1,5 @@
+import { sanitizeFoundItemPrivacy } from './privacy.js';
+
 const TCB_ENV_ID = import.meta.env.VITE_CLOUDBASE_ENV_ID || import.meta.env.VITE_TCB_ENV_ID || 'cloud1-d9gnyuxf5b44b6b92';
 const TCB_ACCESS_KEY = import.meta.env.VITE_CLOUDBASE_ACCESS_KEY || import.meta.env.VITE_TCB_ACCESS_KEY || '';
 const TCB_REGION = import.meta.env.VITE_CLOUDBASE_REGION || import.meta.env.VITE_TCB_REGION || 'ap-shanghai';
@@ -220,7 +222,8 @@ async function classifyViaCloudbase(imageDataUrl, hint, options = {}) {
         mimeType: 'image/jpeg',
         clientId: getClientId(),
         hint,
-        purpose: options.purpose || 'item'
+        purpose: options.purpose || 'item',
+        itemType: options.itemType || ''
       }
     }),
     30000,
@@ -245,7 +248,8 @@ async function classifyViaHunyuan(imageDataUrl, hint, options = {}) {
       imageBase64: imageDataUrl.replace(/^data:[^,]+,/, ''),
       mimeType: 'image/jpeg',
       hint,
-      purpose: options.purpose || 'item'
+      purpose: options.purpose || 'item',
+      itemType: options.itemType || ''
     })
   });
   const body = await response.json().catch(() => ({}));
@@ -278,6 +282,10 @@ export async function recognizeImageFile(file, hint = '', options = {}) {
 
   if (!data) {
     throw new Error(errors.length ? errors.join('；') : endpointRequiredMessage());
+  }
+
+  if (options.itemType === 'found') {
+    data = sanitizeFoundItemPrivacy({ ...data, type: 'found' });
   }
 
   return {
