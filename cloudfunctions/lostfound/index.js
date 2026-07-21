@@ -1,6 +1,6 @@
 const cloud = require('wx-server-sdk');
 const crypto = require('crypto');
-const { isProtectedFoundItem, privacyPromptLines, sanitizeFoundItemPrivacy } = require('./privacy');
+const { isProtectedFoundItem, maskSensitiveText, privacyPromptLines, sanitizeFoundItemPrivacy } = require('./privacy');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -1389,6 +1389,50 @@ async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = 
   return { sent: true, to: ownerEmail };
 }
 
+async function notifyOwnerClaimReviewRequested(item = {}, request = {}) {
+  const safeItem = sanitizeFoundItemPrivacy(item);
+  const ownerUser = await getUserByActorId(item.ownerOpenid);
+  const ownerEmail = userEmail(ownerUser);
+  if (!ownerEmail) return { sent: false, reason: 'OWNER_EMAIL_MISSING' };
+
+  const claimantName = cleanClaimField(request.claimantName, '网页用户', 40);
+  const claimantContact = cleanClaimField(request.claimantContact, '', 100);
+  const title = safeItem.title || '一件招领物品';
+  const location = itemLocationText(safeItem);
+  const description = cleanClaimField(request.description, '未填写', CLAIM_CONFIG.maxDescriptionLength);
+  const modelReason = cleanClaimField(request.modelDecision?.reason, '模型未能直接判断', 160);
+  const subject = `LockMyItem：重要物品「${title}」需要你确认认领`;
+  const text = [
+    `你好，${userDisplayName(ownerUser)}：`,
+    '',
+    `${claimantName} 提交了重要物品认领描述，模型未能直接判断，需要你人工确认。`,
+    `招领物品：${title}`,
+    `物品地点：${location}`,
+    `认领人账号/邮箱：${claimantContact || '未提供'}`,
+    `认领描述：${description}`,
+    `模型判断：${modelReason}`,
+    '',
+    '请回到 LockMyItem 的物品详情，在“待确认认领”中选择通过或拒绝。',
+    '确认前不要要求对方提供完整卡号、证件号、手机号等敏感编号。'
+  ].join('\n');
+  const html = `
+    <p>你好，${escapeHtml(userDisplayName(ownerUser))}：</p>
+    <p><strong>${escapeHtml(claimantName)}</strong> 提交了重要物品认领描述，模型未能直接判断，需要你人工确认。</p>
+    <ul>
+      <li>招领物品：${escapeHtml(title)}</li>
+      <li>物品地点：${escapeHtml(location)}</li>
+      <li>认领人账号/邮箱：${escapeHtml(claimantContact || '未提供')}</li>
+      <li>认领描述：${escapeHtml(description)}</li>
+      <li>模型判断：${escapeHtml(modelReason)}</li>
+    </ul>
+    <p>请回到 LockMyItem 的物品详情，在“待确认认领”中选择通过或拒绝。</p>
+    <p>确认前不要要求对方提供完整卡号、证件号、手机号等敏感编号。</p>
+  `;
+
+  await sendTransactionalEmail({ to: ownerEmail, subject, text, html });
+  return { sent: true, to: ownerEmail };
+}
+
 async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) {
   if (foundItem.type !== 'found' || foundItem.status !== 'active') return [];
   const safeFoundItem = sanitizeFoundItemPrivacy(foundItem);
@@ -1547,11 +1591,12 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
 }
 
 function normalizeClaimDescription(value = '') {
-  return String(value || '')
+  const text = String(value || '')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim()
     .slice(0, CLAIM_CONFIG.maxDescriptionLength);
+  return maskSensitiveText(text).text;
 }
 
 function buildClaimVerificationPrompt(item = {}, description = '') {
@@ -1784,6 +1829,9 @@ async function verifyClaimDescription(event, context) {
     event.itemId,
     actor.actorId
   ).catch(() => null);
+  await notifyOwnerClaimReviewRequested(item, request).catch((error) => {
+    console.warn('Failed to send claim review email notification.', error && (error.message || error));
+  });
 
   return ok({
     status: 'pending_review',

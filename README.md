@@ -71,6 +71,7 @@ CloudBase 环境需要以下集合：
 - `users`
 - `items`
 - `comments`
+- `claim_requests`
 - `thanks`
 - `notifications`
 - `reports`
