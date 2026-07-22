@@ -1,5 +1,4 @@
 const SENSITIVE_CATEGORIES = ['证件', '校园卡'];
-const IMPORTANT_CATEGORIES = ['电子产品', '钥匙'];
 
 const SENSITIVE_WORDS = [
   '身份证',
@@ -20,19 +19,6 @@ const SENSITIVE_WORDS = [
   '门禁卡'
 ];
 
-const IMPORTANT_WORDS = [
-  '钱包',
-  '手机',
-  '耳机',
-  'airpods',
-  '平板',
-  '电脑',
-  '相机',
-  '手表',
-  '钥匙',
-  '门禁卡',
-  '车钥匙'
-];
 const PROTECTED_VISUAL_WORDS = [
   '银行卡',
   '信用卡',
@@ -50,8 +36,7 @@ const PROTECTED_VISUAL_WORDS = [
   '校园卡',
   '一卡通',
   '饭卡',
-  '门禁卡',
-  ...IMPORTANT_WORDS
+  '门禁卡'
 ];
 const SENSITIVE_PLACEHOLDER_LABEL_PATTERN = '(?:身份证号|手机号|证件号|编号|姓名|卡号)';
 const LEGACY_PLACEHOLDER_SUFFIX = [0x5df2, 0x9690, 0x85cf].map((code) => String.fromCharCode(code)).join('');
@@ -178,7 +163,6 @@ function hasProtectedVisualSurface(item = {}) {
 
 function sensitivityForItem(item = {}, maskReasons = []) {
   const text = sourceText(item);
-  const normalizedText = text.toLowerCase();
   const reasons = [];
   const category = String(item.category || '').trim();
   const persistedLevel = String(item.sensitivityLevel || '').trim().toLowerCase();
@@ -188,10 +172,6 @@ function sensitivityForItem(item = {}, maskReasons = []) {
   reasons.push(...maskReasons);
   if (reasons.length) {
     return { level: 'sensitive', reasons: unique(reasons) };
-  }
-
-  if (persistedLevel === 'important' || IMPORTANT_CATEGORIES.includes(category) || IMPORTANT_WORDS.some((word) => normalizedText.includes(word))) {
-    return { level: 'important', reasons: ['贵重物品'] };
   }
 
   return { level: 'normal', reasons: [] };
@@ -220,7 +200,7 @@ function sanitizeFoundItemPrivacy(item = {}) {
 function isProtectedFoundItem(item = {}) {
   if (!isFoundItem(item)) return false;
   const level = String(item.sensitivityLevel || '').trim().toLowerCase();
-  return level === 'sensitive' || level === 'important' || hasProtectedVisualSurface(item);
+  return level === 'sensitive' || hasProtectedVisualSurface(item);
 }
 
 function privacyPromptLines(itemType = '') {

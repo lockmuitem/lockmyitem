@@ -22,7 +22,7 @@ function normalizeQQExtraction(raw = {}, fallbackText = '') {
     locationRaw: clean(raw.locationRaw || raw.rawLocation || '', 160),
     locationName: clean(raw.locationName || raw.normalizedLocation || raw.locationRaw || '', 80),
     occurredAtText: clean(raw.occurredAtText || raw.timeText || '', 80),
-    sensitivityLevel: ['sensitive', 'important'].includes(raw.sensitivityLevel) ? raw.sensitivityLevel : 'normal',
+    sensitivityLevel: raw.sensitivityLevel === 'sensitive' ? 'sensitive' : 'normal',
     aiTags: Array.isArray(raw.aiTags) ? raw.aiTags.map((entry) => clean(entry, 30)).filter(Boolean).slice(0, 10) : [],
     modelReason: clean(raw.reason || raw.modelReason || '', 240)
   };

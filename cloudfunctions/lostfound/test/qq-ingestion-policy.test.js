@@ -76,17 +76,22 @@ test('QQ review corrections only update approved fields and preserve sensitivity
     title: '物品',
     description: '原描述',
     category: '电子产品',
-    sensitivityLevel: 'important',
+    sensitivityLevel: 'normal',
     senderHash: 'must-not-change'
   };
   const corrected = applyQQReviewCorrections(original, {
     title: '白色耳机',
     locationId: 'teaching-center',
-    sensitivityLevel: 'normal',
+    sensitivityLevel: 'sensitive',
     senderHash: 'attacker-value'
   });
   assert.equal(corrected.title, '白色耳机');
   assert.equal(corrected.locationId, 'teaching-center');
-  assert.equal(corrected.sensitivityLevel, 'important');
+  assert.equal(corrected.sensitivityLevel, 'normal');
   assert.equal(corrected.senderHash, 'must-not-change');
+});
+
+test('QQ extraction maps model important level back to normal', () => {
+  const value = normalizeQQExtraction({ title: '白色耳机', sensitivityLevel: 'important' });
+  assert.equal(value.sensitivityLevel, 'normal');
 });

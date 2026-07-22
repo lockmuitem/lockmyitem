@@ -2603,9 +2603,9 @@ function verifyQQAdminSignature(event = {}) {
 function buildQQExtractionPrompt(payload = {}) {
   return [
     '你是校园失物招领结构化助手。结合群消息文字与图片，判断是否为真实失物/招领线索。',
-    '只返回 JSON：isLostFound, confidence(0-1), type(found/lost), title, description, category, locationRaw, locationName, occurredAtText, sensitivityLevel(normal/important/sensitive), aiTags, reason。',
+    '只返回 JSON：isLostFound, confidence(0-1), type(found/lost), title, description, category, locationRaw, locationName, occurredAtText, sensitivityLevel(normal/sensitive), aiTags, reason。',
     'locationRaw 保留原文地点，locationName 规范为校园建筑或区域；无法确定时留空。',
-    '校园卡、银行卡、证件、带姓名学号的纸张为 sensitive；手机、耳机、钱包、钥匙等为 important。',
+    '校园卡、银行卡、证件、带姓名学号的纸张为 sensitive；普通手机、耳机、钱包、钥匙、鼠标、耳机盒等为 normal，不要标 important。',
     '不要抄录姓名、学号、卡号、手机号、二维码内容或任何唯一编号。',
     `群消息：${String(payload.text || '').slice(0, 1200) || '（无文字，仅有图片）'}`,
     `发送时间：${String(payload.sentAt || '').slice(0, 80) || '未知'}`
