@@ -72,7 +72,7 @@ def inspect_loose_directory(directory: Path) -> dict[str, Any]:
         "importable": bool(images),
         "autoPublishEligible": False,
         "forcedRoute": "needs_review",
-        "missingFields": ["messageId", "senderId", "sentAt", "text/location", "image grouping"],
+        "missingFields": ["messageId", "senderId", "text/location", "image grouping"],
         "imageCount": len(images),
         "totalBytes": sum(image["bytes"] for image in images),
         "images": images,
@@ -96,7 +96,7 @@ def validate_manifest_record(record: dict[str, Any], base_dir: Path) -> list[str
     message_ids = record.get("messageIds") or ([record.get("messageId")] if record.get("messageId") else [])
     if not message_ids or any(not str(value).strip() for value in message_ids):
         errors.append(f"line {line}: messageId/messageIds is required")
-    for field in ("groupId", "senderId", "sentAt"):
+    for field in ("groupId", "senderId"):
         if not str(record.get(field, "")).strip():
             errors.append(f"line {line}: {field} is required")
     if record.get("sentAt"):
@@ -118,11 +118,15 @@ def validate_manifest_record(record: dict[str, Any], base_dir: Path) -> list[str
 
 def aggregate_manifest_records(records: list[dict[str, Any]], base_dir: Path, window_seconds: int = 45) -> tuple[list[dict[str, Any]], list[str]]:
     errors = [error for record in records for error in validate_manifest_record(record, base_dir)]
+    timestamp_presence = [bool(str(record.get("sentAt") or "").strip()) for record in records]
+    if any(timestamp_presence) and not all(timestamp_presence):
+        errors.append("sentAt must be present on every record or omitted from every record")
     if errors:
         return [], errors
 
     prepared = []
-    for record in records:
+    for sequence, record in enumerate(records):
+        sent_at = str(record.get("sentAt") or "").strip()
         prepared.append({
             "messageIds": [str(value) for value in (record.get("messageIds") or [record["messageId"]])],
             "groupId": str(record["groupId"]),
@@ -130,34 +134,64 @@ def aggregate_manifest_records(records: list[dict[str, Any]], base_dir: Path, wi
             "senderId": str(record["senderId"]),
             "textParts": [str(record.get("text") or "").strip()] if str(record.get("text") or "").strip() else [],
             "imagePaths": [str(value) for value in (record.get("imagePaths") or [])],
-            "sentAt": str(record["sentAt"]),
-            "_timestamp": parse_timestamp(record["sentAt"]),
+            "sentAt": sent_at,
+            "_timestamp": parse_timestamp(sent_at) if sent_at else None,
+            "_sequence": sequence,
+            "_itemBoundary": bool(record.get("itemBoundary") or record.get("newItem")),
         })
 
-    prepared.sort(key=lambda value: value["_timestamp"])
+    if all(timestamp_presence):
+        prepared.sort(key=lambda value: value["_timestamp"])
     batches: list[dict[str, Any]] = []
-    active: dict[tuple[str, str], dict[str, Any]] = {}
-    for message in prepared:
-        key = (message["groupId"], message["senderId"])
-        batch = active.get(key)
-        inactivity = (message["_timestamp"] - batch["_lastTimestamp"]).total_seconds() if batch else None
-        if batch is None or inactivity is None or inactivity < 0 or inactivity > window_seconds:
-            batch = {
-                "messageIds": [],
-                "groupId": message["groupId"],
-                "groupName": message["groupName"],
-                "senderId": message["senderId"],
-                "textParts": [],
-                "imagePaths": [],
-                "sentAt": message["sentAt"],
-                "_lastTimestamp": message["_timestamp"],
-            }
-            active[key] = batch
-            batches.append(batch)
+
+    def new_batch(message: dict[str, Any]) -> dict[str, Any]:
+        batch = {
+            "messageIds": [],
+            "groupId": message["groupId"],
+            "groupName": message["groupName"],
+            "senderId": message["senderId"],
+            "textParts": [],
+            "imagePaths": [],
+            "sentAt": message["sentAt"],
+            "_lastTimestamp": message["_timestamp"],
+            "_hasImages": False,
+            "_textAfterImage": False,
+        }
+        batches.append(batch)
+        return batch
+
+    def append_message(batch: dict[str, Any], message: dict[str, Any]) -> None:
+        had_images = batch["_hasImages"]
         batch["messageIds"].extend(message["messageIds"])
         batch["textParts"].extend(message["textParts"])
         batch["imagePaths"].extend(message["imagePaths"])
+        if had_images and message["textParts"]:
+            batch["_textAfterImage"] = True
+        batch["_hasImages"] = bool(batch["imagePaths"])
         batch["_lastTimestamp"] = message["_timestamp"]
+
+    if all(timestamp_presence):
+        active: dict[tuple[str, str], dict[str, Any]] = {}
+        for message in prepared:
+            key = (message["groupId"], message["senderId"])
+            batch = active.get(key)
+            inactivity = (message["_timestamp"] - batch["_lastTimestamp"]).total_seconds() if batch else None
+            if message["_itemBoundary"] or batch is None or inactivity is None or inactivity < 0 or inactivity > window_seconds:
+                batch = new_batch(message)
+                active[key] = batch
+            append_message(batch, message)
+    else:
+        batch = None
+        active_key = None
+        for message in prepared:
+            key = (message["groupId"], message["senderId"])
+            starts_new_image_after_location = bool(
+                batch and message["imagePaths"] and batch["_hasImages"] and batch["_textAfterImage"]
+            )
+            if message["_itemBoundary"] or batch is None or key != active_key or starts_new_image_after_location:
+                batch = new_batch(message)
+                active_key = key
+            append_message(batch, message)
 
     output = []
     for batch in batches:

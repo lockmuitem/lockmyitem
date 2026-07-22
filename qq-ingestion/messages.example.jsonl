@@ -1,2 +1,3 @@
-{"messageId":"qq-message-001","groupId":"configured-group-openid","groupName":"上科大健忘者互助协会","senderId":"sender-openid","text":"教学中心一楼捡到白色耳机","imagePaths":["samples/earbuds-front.jpg"],"sentAt":"2026-07-22T09:30:00+08:00"}
-{"messageId":"qq-message-002","groupId":"configured-group-openid","groupName":"上科大健忘者互助协会","senderId":"sender-openid","text":"已经放在一楼服务台","imagePaths":["samples/earbuds-back.jpg"],"sentAt":"2026-07-22T09:30:32+08:00"}
+{"messageId":"qq-message-001","groupId":"configured-group-openid","groupName":"上科大健忘者互助协会","senderId":"sender-openid","text":"","imagePaths":["samples/earbuds-front.jpg"]}
+{"messageId":"qq-message-002","groupId":"configured-group-openid","groupName":"上科大健忘者互助协会","senderId":"sender-openid","text":"","imagePaths":["samples/earbuds-back.jpg"]}
+{"messageId":"qq-message-003","groupId":"configured-group-openid","groupName":"上科大健忘者互助协会","senderId":"sender-openid","text":"教学中心一楼捡到，已经放在服务台","imagePaths":[]}
