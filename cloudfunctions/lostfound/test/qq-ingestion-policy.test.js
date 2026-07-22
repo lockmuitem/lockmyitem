@@ -91,7 +91,7 @@ test('QQ review corrections only update approved fields and preserve sensitivity
   assert.equal(corrected.senderHash, 'must-not-change');
 });
 
-test('QQ extraction maps model important level back to normal', () => {
+test('QQ extraction preserves model important level', () => {
   const value = normalizeQQExtraction({ title: '白色耳机', sensitivityLevel: 'important' });
-  assert.equal(value.sensitivityLevel, 'normal');
+  assert.equal(value.sensitivityLevel, 'important');
 });
