@@ -12,6 +12,8 @@ _deploy_*/
 *.zip
 __pycache__/
 *.py[cod]
+qq-ingestion/.venv/
+qq-ingestion/data/
 web/preview-*.png
 
 # Logs

@@ -1,19 +1,24 @@
 import asyncio
 import os
+from pathlib import Path
 
 import botpy
 from botpy.message import GroupMessage
 
 from lockmyitem_qqbot.aggregator import IncomingMessage
 from lockmyitem_qqbot.client import LockMyItemIngestClient, attachment_urls
+from check_config import load_env_file
 
 
 class LockMyItemQQBot(botpy.Client):
     async def on_ready(self):
         self.ingest = LockMyItemIngestClient(self.reply_to_group)
-        if not getattr(self, "outbox_task", None) or self.outbox_task.done():
+        stats = await asyncio.to_thread(self.ingest.spool.stats)
+        print(f"LockMyItem local queue: {stats['pending']} pending, {stats['processed']} processed")
+        if self.ingest.backend_configured and (not getattr(self, "outbox_task", None) or self.outbox_task.done()):
             self.outbox_task = asyncio.create_task(self.deliver_outbox())
-        print("LockMyItem QQ bot is ready")
+        mode = "backend delivery" if self.ingest.backend_configured else "local queue only"
+        print(f"LockMyItem QQ bot is ready ({mode})")
 
     async def _accept_group_message(self, message: GroupMessage):
         author = getattr(message, "author", None)
@@ -42,6 +47,7 @@ class LockMyItemQQBot(botpy.Client):
     async def deliver_outbox(self):
         while True:
             try:
+                await self.ingest.deliver_pending()
                 messages = await asyncio.to_thread(self.ingest.pull_outbox)
                 for entry in messages:
                     try:
@@ -62,5 +68,8 @@ class LockMyItemQQBot(botpy.Client):
 
 
 if __name__ == "__main__":
+    env_file = Path(__file__).with_name(".env")
+    if env_file.is_file():
+        load_env_file(env_file)
     intents = botpy.Intents(public_messages=True)
     LockMyItemQQBot(intents=intents).run(appid=os.environ["QQ_BOT_APP_ID"], secret=os.environ["QQ_BOT_SECRET"])

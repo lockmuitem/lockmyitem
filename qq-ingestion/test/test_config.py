@@ -33,6 +33,20 @@ class ConfigValidationTest(unittest.TestCase):
         errors = [entry for entry in validate_config(environment, "all") if entry["level"] == "error"]
         self.assertEqual(errors, [])
 
+    def test_listener_scope_does_not_require_cloud_backend(self):
+        environment = {
+            "QQ_BOT_APP_ID": "app-id",
+            "QQ_BOT_SECRET": "bot-secret",
+            "QQ_GROUP_ID": "group-id",
+        }
+        errors = [entry for entry in validate_config(environment, "listener") if entry["level"] == "error"]
+        self.assertEqual(errors, [])
+
+    def test_local_scope_only_requires_hunyuan_api(self):
+        environment = {"HUNYUAN_API_KEY": "local-key"}
+        errors = [entry for entry in validate_config(environment, "local") if entry["level"] == "error"]
+        self.assertEqual(errors, [])
+
     def test_rejects_shared_secrets_bad_urls_and_inverted_thresholds(self):
         shared = "x" * 32
         environment = {

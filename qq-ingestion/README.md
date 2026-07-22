@@ -11,7 +11,7 @@
 5. 高置信度且地点能唯一映射到 `campus_locations`：自动发布并由机器人回复“已录入 LockMyItem：链接”；中置信度、地点歧义或缺地点：进入 `qq_ingest_drafts`；低置信度/闲聊：仅记录后忽略。
 6. 自动发布的物品继续使用网站的敏感图片保护与认领确认流程。
 
-进程内消息 ID 缓存默认保留 24 小时且最多 20000 条，避免长期运行时无限占用内存。云函数暂时失败时默认指数退避重试 5 次；重试仍由云端消息 ID 幂等保护。
+进程内消息 ID 缓存默认保留 24 小时且最多 20000 条，避免长期运行时无限占用内存。每个聚合批次会先写入本地 SQLite 持久队列，再尝试发送；断网、后端未配置或进程重启都不会丢失。云端确认后，本地队列会删除含图片的载荷，只保留批次哈希用于去重。
 
 ## 启动
 
@@ -27,7 +27,16 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-把 `.env` 中的值配置到实际进程环境（仓库不会自动加载 `.env`）。模板后半部分的变量还要配置到 CloudBase `lostfound` 云函数环境；不要把含真实值的 `.env` 或云函数配置提交到 Git。然后：
+`run_bot.py` 会自动读取同目录的本地 `.env`。模板后半部分的变量还要配置到 CloudBase `lostfound` 云函数环境；不要把含真实值的 `.env` 或云函数配置提交到 Git。
+
+如果暂时不接 CloudBase，只想让官方机器人先收集并落到本地队列，可只配置 QQ 三项并运行：
+
+```powershell
+python check_config.py --scope listener --env-file .env
+python run_bot.py
+```
+
+默认队列位于 `data/qq-ingestion-spool.sqlite3`，其中待处理记录可能含敏感图片，已被 Git 忽略；不要共享或提交该文件。以后补齐 `LOCKMYITEM_INGEST_URL` 和 `QQ_INGEST_SECRET` 后，同一进程会自动续传。完整云端模式使用：
 
 ```powershell
 python check_config.py --scope all --env-file .env
@@ -56,7 +65,9 @@ python review_drafts.py reject <draft-id>
 
 ## 历史聊天记录
 
-推荐把 QQ 导出结果转换成 `messages.example.jsonl` 的“一行一条原始消息”格式。每条必须保留真实 `messageId`、`senderId`、带时区的 `sentAt`、文字和相对图片路径；导入器会按发送者和 45 秒窗口聚合。也兼容已经预聚合的 `messageIds` 数组。
+当前更稳妥的落地方式是：从 QQ 下载完整聊天记录与图片，原样放在一个本地目录，再由本工具增量处理。请优先导出完整记录，不要只复制图片；完整记录中的消息 ID、发送者、时间、文字和图片对应关系决定了多张照片能否正确归为同一物品。
+
+目前已直接支持 `messages.jsonl`：一行一条原始消息，每条保留真实 `messageId`、`senderId`、带时区的 `sentAt`、文字和相对图片路径；程序按发送者和 45 秒窗口聚合，也兼容已经预聚合的 `messageIds` 数组。QQ 客户端实际导出的 TXT/HTML/MHT/JSON 格式并不固定，拿到你的真实导出样本后再添加对应解析器；程序发现这些未适配文件时会明确停止，不会错误地把它们当成裸图片处理。
 
 当前工作区“QQ聊天记录”只有裸图片，没有发送者、时间、文字地点或消息 ID。可使用：
 
@@ -67,6 +78,16 @@ python import_history.py --manifest messages.jsonl
 ```
 
 `--dry-run` 不需要云端凭据，会报告字段缺失、聚合结果、图片尺寸和哈希。裸图片导入会在签名载荷中标记 `importMode=loose_images`，后端不接受模型对该标记的自动发布或忽略决定，而是强制进入人工审核；内部来源同时标记其消息标识为哈希生成，不能冒充真实 QQ 消息 ID。多张同一物品的照片只有在 JSONL 中具有同一发送者且发送间隔不超过窗口，系统才会把它们作为一条记录处理。
+
+如果先不使用 CloudBase，可在本机 `.env` 只配置 `HUNYUAN_API_KEY`，然后运行本地混元流程：
+
+```powershell
+python process_history.py --source "..\..\..\QQ聊天记录" --dry-run
+python check_config.py --scope local --env-file .env
+python process_history.py --source "..\..\..\QQ聊天记录" --env-file .env
+```
+
+本地流程会自动计算来源哈希并增量去重，结果保存在被 Git 忽略的 `data/history-results.sqlite3` 与 `data/history-results.jsonl`。结果只含本地图片路径/哈希和脱敏后的模型结构化字段，不包含图片 Base64、发送者原 ID 或原始聊天正文。正常高置信度且地点完整的普通物品标记为 `publish_candidate`；中等置信度、缺地点及 important/sensitive 物品进入 `needs_review`；裸图片无论模型置信度多高都强制 `needs_review`。该阶段只生成候选和审核结果，不会直接公开网站图片。
 
 ## 验收
 

@@ -40,16 +40,17 @@ def validate_config(environment: dict[str, str], scope: str = "all") -> list[dic
             error(name, "missing")
         return current
 
-    if scope in {"bot", "all"}:
+    if scope in {"listener", "bot", "all"}:
         require("QQ_BOT_APP_ID")
         require("QQ_BOT_SECRET")
         require("QQ_GROUP_ID")
-        ingest_url = require("LOCKMYITEM_INGEST_URL")
-        ingest_secret = require("QQ_INGEST_SECRET")
-        if ingest_url and not _is_https(ingest_url):
-            error("LOCKMYITEM_INGEST_URL", "must be an HTTPS CloudBase HTTP trigger")
-        if ingest_secret and len(ingest_secret) < 32:
-            error("QQ_INGEST_SECRET", "must contain at least 32 characters")
+        if scope in {"bot", "all"}:
+            ingest_url = require("LOCKMYITEM_INGEST_URL")
+            ingest_secret = require("QQ_INGEST_SECRET")
+            if ingest_url and not _is_https(ingest_url):
+                error("LOCKMYITEM_INGEST_URL", "must be an HTTPS CloudBase HTTP trigger")
+            if ingest_secret and len(ingest_secret) < 32:
+                error("QQ_INGEST_SECRET", "must contain at least 32 characters")
         try:
             window = float(value("QQ_AGGREGATION_SECONDS") or "45")
             if not 30 <= window <= 60:
@@ -102,6 +103,12 @@ def validate_config(environment: dict[str, str], scope: str = "all") -> list[dic
         if not value("SMTP_FROM"):
             warning("SMTP_FROM", "not set; SMTP_USER will be used as sender")
 
+    if scope == "local":
+        require("HUNYUAN_API_KEY")
+        base_url = value("HUNYUAN_BASE_URL") or "https://api.hunyuan.cloud.tencent.com/v1"
+        if not _is_https(base_url):
+            error("HUNYUAN_BASE_URL", "must use HTTPS")
+
     return issues
 
 
@@ -119,13 +126,13 @@ def sdk_status() -> dict[str, str]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validate LockMyItem QQ bot and CloudBase configuration without printing secrets")
-    parser.add_argument("--scope", choices=("bot", "cloud", "all"), default="all")
+    parser.add_argument("--scope", choices=("listener", "bot", "cloud", "local", "all"), default="all")
     parser.add_argument("--env-file", type=Path)
     args = parser.parse_args()
     if args.env_file:
         load_env_file(args.env_file)
     findings = validate_config(dict(os.environ), args.scope)
-    if args.scope in {"bot", "all"}:
+    if args.scope in {"listener", "bot", "all"}:
         findings.append(sdk_status())
     errors = [entry for entry in findings if entry["level"] == "error"]
     report = {
