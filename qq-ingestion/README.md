@@ -51,7 +51,9 @@ python run_bot.py
 python check_config.py --scope cloud
 ```
 
-中置信度草稿通过 HMAC 管理接口 `listQQDrafts` / `reviewQQDraft` 审核，使用与机器人隔离的 `QQ_ADMIN_SECRET`。敏感 QQ 物品还必须配置 `QQ_REVIEW_OWNER_ACTOR_ID` 为一个真实的站内管理员 `_openid`；这样模型无法直接核验认领时，该管理员会收到站内/邮件确认。未配置时敏感内容不会自动发布，也不能被误审核上线。
+中置信度草稿通过 HMAC 管理接口 `listQQDrafts` / `reviewQQDraft` 审核，使用与机器人隔离的 `QQ_ADMIN_SECRET`。QQ群中的原发布者不需要注册本系统：配置 `QQ_REVIEW_OWNER_EMAIL` 后，所有 QQ 线索会统一归属到该邮箱对应的“QQ群代发布管理员”身份，认领、匹配和人工确认邮件也统一发送到该邮箱。系统会从邮箱确定性生成站内身份，因此该邮箱即使尚未注册也可以先接收邮件；要进入网站执行通过/拒绝时，只需用完全相同的邮箱完成一次注册。不要同时填写不匹配的 `QQ_REVIEW_OWNER_ACTOR_ID`。
+
+该统一邮箱只保存在云函数环境配置和私有用户数据中，不会写入公开物品响应。若 `QQ_REVIEW_OWNER_EMAIL` 与 `QQ_REVIEW_OWNER_ACTOR_ID` 都未配置，敏感内容不会自动发布，也不能被误审核上线。
 
 管理员批准草稿后，云函数把通知写入 `qq_bot_outbox`；机器人每 10 秒领取，失败最多重试 5 次。QQ 官方接口的被动回复有 5 分钟有效期：尚在安全时窗内时引用原消息，人工审核超时后则降级为同群主动通知，避免用过期 `msg_id` 无限重试。中等置信度内容在未审核时不会展示或回复带链接的发布结果。主动消息仍受 QQ 开放平台当时的群消息频控和额度限制。
 

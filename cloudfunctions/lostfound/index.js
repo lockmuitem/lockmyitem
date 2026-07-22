@@ -23,6 +23,7 @@ const {
   normalizeQQExtraction,
   qqReplyDeadlineMs,
   qqReplyMessageId,
+  resolveQQReviewOwner,
   qqSignatureMessage,
   routeQQExtraction
 } = require('./qq-ingestion-policy');
@@ -128,10 +129,17 @@ const CLAIM_CONFIG = {
   ownerNotificationCooldownMs: positiveNumber(process.env.CLAIM_OWNER_NOTIFICATION_COOLDOWN_MS, 10 * 60 * 1000)
 };
 
+const QQ_REVIEW_OWNER = resolveQQReviewOwner({
+  actorId: process.env.QQ_REVIEW_OWNER_ACTOR_ID,
+  email: process.env.QQ_REVIEW_OWNER_EMAIL,
+  emailDomain: AUTH_CONFIG.emailDomain
+});
+
 const QQ_INGEST_CONFIG = {
   secret: process.env.QQ_INGEST_SECRET || '',
   adminSecret: process.env.QQ_ADMIN_SECRET || '',
-  reviewOwnerActorId: process.env.QQ_REVIEW_OWNER_ACTOR_ID || '',
+  reviewOwnerActorId: QQ_REVIEW_OWNER.actorId,
+  reviewOwnerEmail: QQ_REVIEW_OWNER.email,
   allowedGroupName: process.env.QQ_ALLOWED_GROUP_NAME || '上科大健忘者互助协会',
   allowedGroupIds: new Set(String(process.env.QQ_ALLOWED_GROUP_IDS || '').split(',').map((value) => value.trim()).filter(Boolean)),
   signatureTtlMs: positiveNumber(process.env.QQ_SIGNATURE_TTL_MS, 5 * 60 * 1000),
@@ -1221,6 +1229,18 @@ function userDisplayName(user = {}, fallback = '网页用户') {
   return sanitizeNickName(profile.nickName || profile.emailPrefix || fallback, fallback);
 }
 
+function isQQManagedItem(item = {}) {
+  return item?.source?.platform === 'qq';
+}
+
+function ownerEmailForItem(item = {}, ownerUser = {}) {
+  return userEmail(ownerUser) || (isQQManagedItem(item) ? QQ_INGEST_CONFIG.reviewOwnerEmail : '');
+}
+
+function ownerNameForItem(item = {}, ownerUser = {}) {
+  return userDisplayName(ownerUser, isQQManagedItem(item) ? 'QQ群代发布管理员' : '网页用户');
+}
+
 async function sendTransactionalEmail({ to, subject, text, html }) {
   if (!AUTH_CONFIG.smtpHost || !AUTH_CONFIG.smtpUser || !AUTH_CONFIG.smtpPass || !AUTH_CONFIG.smtpFrom) {
     throw new Error('邮件服务未配置，请在云函数环境变量中配置 SMTP_HOST/SMTP_USER/SMTP_PASS/SMTP_FROM');
@@ -1491,7 +1511,7 @@ async function createNotification(userOpenid, type, content, itemId, actorOpenid
 async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = {}) {
   const safeItem = sanitizeFoundItemPrivacy(item);
   const ownerUser = await getUserByActorId(item.ownerOpenid);
-  const ownerEmail = userEmail(ownerUser);
+  const ownerEmail = ownerEmailForItem(item, ownerUser);
   if (!ownerEmail) return { sent: false, reason: 'OWNER_EMAIL_MISSING' };
 
   const claimantName = claimData.claimantName || userDisplayName(claimantUser);
@@ -1500,7 +1520,7 @@ async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = 
   const location = itemLocationText(safeItem);
   const subject = `LockMyItem：你的招领物品「${title}」已被认领`;
   const text = [
-    `你好，${userDisplayName(ownerUser)}：`,
+    `你好，${ownerNameForItem(item, ownerUser)}：`,
     '',
     `你发布的招领物品「${title}」已被 ${claimantName} 认领。`,
     `领取者账号/邮箱：${claimantEmail || claimData.claimantContact || '未提供'}`,
@@ -1509,7 +1529,7 @@ async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = 
     '如有疑问，请回到 LockMyItem 查看详情。'
   ].join('\n');
   const html = `
-    <p>你好，${escapeHtml(userDisplayName(ownerUser))}：</p>
+    <p>你好，${escapeHtml(ownerNameForItem(item, ownerUser))}：</p>
     <p>你发布的招领物品 <strong>「${escapeHtml(title)}」</strong> 已被 <strong>${escapeHtml(claimantName)}</strong> 认领。</p>
     <ul>
       <li>领取者账号/邮箱：${escapeHtml(claimantEmail || claimData.claimantContact || '未提供')}</li>
@@ -1525,7 +1545,7 @@ async function notifyOwnerItemClaimed(item = {}, claimantUser = {}, claimData = 
 async function notifyOwnerClaimReviewRequested(item = {}, request = {}) {
   const safeItem = sanitizeFoundItemPrivacy(item);
   const ownerUser = await getUserByActorId(item.ownerOpenid);
-  const ownerEmail = userEmail(ownerUser);
+  const ownerEmail = ownerEmailForItem(item, ownerUser);
   if (!ownerEmail) return { sent: false, reason: 'OWNER_EMAIL_MISSING' };
 
   const claimantName = cleanClaimField(request.claimantName, '网页用户', 40);
@@ -1536,7 +1556,7 @@ async function notifyOwnerClaimReviewRequested(item = {}, request = {}) {
   const modelReason = cleanClaimField(request.modelDecision?.reason, '模型未能直接判断', 160);
   const subject = `LockMyItem：敏感卡面物品「${title}」需要你确认认领`;
   const text = [
-    `你好，${userDisplayName(ownerUser)}：`,
+    `你好，${ownerNameForItem(item, ownerUser)}：`,
     '',
     `${claimantName} 提交了敏感卡面物品认领描述，模型未能直接判断，需要你人工确认。`,
     `招领物品：${title}`,
@@ -1549,7 +1569,7 @@ async function notifyOwnerClaimReviewRequested(item = {}, request = {}) {
     '请避免在评论或邮件里直接交流个人敏感信息；如需进一步核验，请让对方回到 LockMyItem 认领表单补充。'
   ].join('\n');
   const html = `
-    <p>你好，${escapeHtml(userDisplayName(ownerUser))}：</p>
+    <p>你好，${escapeHtml(ownerNameForItem(item, ownerUser))}：</p>
     <p><strong>${escapeHtml(claimantName)}</strong> 提交了敏感卡面物品认领描述，模型未能直接判断，需要你人工确认。</p>
     <ul>
       <li>招领物品：${escapeHtml(title)}</li>
@@ -1569,8 +1589,8 @@ async function notifyOwnerClaimReviewRequested(item = {}, request = {}) {
 async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) {
   if (foundItem.type !== 'found' || foundItem.status !== 'active') return [];
   const safeFoundItem = sanitizeFoundItemPrivacy(foundItem);
-  const finderEmail = userEmail(finderUser);
-  const finderName = userDisplayName(finderUser, safeFoundItem.ownerName || '招领发布者');
+  const finderEmail = ownerEmailForItem(foundItem, finderUser);
+  const finderName = ownerNameForItem(foundItem, finderUser) || safeFoundItem.ownerName || '招领发布者';
   const result = await db.collection(COLLECTIONS.items)
     .where({ type: 'lost', status: 'active' })
     .orderBy('createdAt', 'desc')
@@ -1646,7 +1666,7 @@ async function notifyLostOwnersAboutFoundMatch(foundItem = {}, finderUser = {}) 
 
 async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner = {}) {
   if (lostItem.type !== 'lost' || lostItem.status !== 'active') return [];
-  const lostOwnerEmail = userEmail(lostOwner);
+  const lostOwnerEmail = ownerEmailForItem(lostItem, lostOwner);
   if (!lostOwnerEmail) return [];
 
   const result = await db.collection(COLLECTIONS.items)
@@ -1669,8 +1689,8 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
   for (const match of matches) {
     const safeFoundItem = sanitizeFoundItemPrivacy(match.foundItem);
     const foundOwner = await getUserByActorId(match.foundItem.ownerOpenid);
-    const finderEmail = userEmail(foundOwner);
-    const finderName = userDisplayName(foundOwner, safeFoundItem.ownerName || '招领发布者');
+    const finderEmail = ownerEmailForItem(match.foundItem, foundOwner);
+    const finderName = ownerNameForItem(match.foundItem, foundOwner) || safeFoundItem.ownerName || '招领发布者';
     const lostTitle = lostItem.title || '你的寻物线索';
     const foundTitle = safeFoundItem.title || '一件招领物品';
     const location = itemLocationText(safeFoundItem);
@@ -1678,7 +1698,7 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
     const claimNotice = isProtectedFoundItem(safeFoundItem) ? '含敏感卡面或证件信息，需先提交可验证特征；敏感内容仅用于核验，不会公开展示。' : '';
     const subject = `LockMyItem：可能找到你的「${lostTitle}」`;
     const text = [
-      `你好，${userDisplayName(lostOwner)}：`,
+      `你好，${ownerNameForItem(lostItem, lostOwner)}：`,
       '',
       `已有一条招领信息和你刚发布的寻物「${lostTitle}」相似度较高。`,
       `招领物品：${foundTitle}`,
@@ -1692,7 +1712,7 @@ async function notifyLostOwnerAboutExistingFoundMatches(lostItem = {}, lostOwner
       '请回到 LockMyItem 查看详情并确认是否为你的物品。'
     ].filter((line) => line !== '').join('\n');
     const html = `
-      <p>你好，${escapeHtml(userDisplayName(lostOwner))}：</p>
+      <p>你好，${escapeHtml(ownerNameForItem(lostItem, lostOwner))}：</p>
       <p>已有一条招领信息和你刚发布的寻物 <strong>「${escapeHtml(lostTitle)}」</strong> 相似度较高。</p>
       <ul>
         <li>招领物品：${escapeHtml(foundTitle)}</li>
@@ -2923,7 +2943,7 @@ async function reviewQQDraft(event) {
     longitude: optionalNumber(matchedLocation.longitude)
   });
   if (isProtectedFoundItem(extraction) && !QQ_INGEST_CONFIG.reviewOwnerActorId) {
-    return fail('敏感 QQ 物品需要先配置 QQ_REVIEW_OWNER_ACTOR_ID，供人工认领复核', 'QQ_REVIEW_OWNER_REQUIRED');
+    return fail('敏感 QQ 物品需要先配置 QQ_REVIEW_OWNER_EMAIL 或 QQ_REVIEW_OWNER_ACTOR_ID，供人工认领复核', 'QQ_REVIEW_OWNER_REQUIRED');
   }
   const itemData = sanitizeFoundItemPrivacy({
     type: extraction.type,

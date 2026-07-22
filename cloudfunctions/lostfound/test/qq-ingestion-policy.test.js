@@ -9,6 +9,7 @@ const {
   normalizeQQExtraction,
   qqReplyDeadlineMs,
   qqReplyMessageId,
+  resolveQQReviewOwner,
   qqSignatureMessage,
   routeQQExtraction,
   stableJson
@@ -107,4 +108,16 @@ test('protected QQ items require a configured review owner before publishing', (
   assert.equal(applyQQRouteGuards('published', { isProtected: true, hasReviewOwner: false }), 'needs_review');
   assert.equal(applyQQRouteGuards('published', { isProtected: true, hasReviewOwner: true }), 'published');
   assert.equal(applyQQRouteGuards('published', { isProtected: false, hasReviewOwner: false }), 'published');
+});
+
+test('QQ review owner can be derived from the unified email before registration', () => {
+  const owner = resolveQQReviewOwner({ email: 'SHAOLQ2025@ShanghaiTech.edu.cn' });
+  assert.equal(owner.email, 'shaolq2025@shanghaitech.edu.cn');
+  assert.match(owner.actorId, /^email:[a-f0-9]{64}$/);
+  assert.equal(owner.actorId, owner.derivedActorId);
+  assert.deepEqual(resolveQQReviewOwner({ email: 'outside@example.com' }), {
+    actorId: '',
+    email: '',
+    derivedActorId: ''
+  });
 });

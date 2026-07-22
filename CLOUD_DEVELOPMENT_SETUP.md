@@ -26,7 +26,7 @@ Required groups:
 - SMTP credentials when email verification or notification is enabled
 - CloudBase Web access policy or anonymous-login policy for browser calls
 
-QQ ingestion additionally requires `QQ_INGEST_SECRET`, `QQ_ADMIN_SECRET`, `QQ_ALLOWED_GROUP_IDS`, `QQ_REVIEW_OWNER_ACTOR_ID`, `WEB_PUBLIC_BASE_URL`, and an HTTP trigger for `lostfound`. Keep the bot and admin secrets separate and store them only in the relevant process and CloudBase secret storage.
+QQ ingestion additionally requires `QQ_INGEST_SECRET`, `QQ_ADMIN_SECRET`, `QQ_ALLOWED_GROUP_IDS`, `WEB_PUBLIC_BASE_URL`, an HTTP trigger for `lostfound`, and either `QQ_REVIEW_OWNER_EMAIL` (recommended for centralized QQ publishing) or `QQ_REVIEW_OWNER_ACTOR_ID`. Keep the bot and admin secrets separate and store them only in the relevant process and CloudBase secret storage.
 
 If multiple Hunyuan credential modes are configured, the cloud function prefers Tencent Cloud signed API calls over the OpenAI-compatible endpoint.
 

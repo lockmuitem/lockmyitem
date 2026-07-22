@@ -33,6 +33,22 @@ class ConfigValidationTest(unittest.TestCase):
         errors = [entry for entry in validate_config(environment, "all") if entry["level"] == "error"]
         self.assertEqual(errors, [])
 
+    def test_cloud_accepts_unified_qq_owner_email_without_existing_actor_id(self):
+        environment = {
+            "AUTH_TOKEN_SECRET": "t" * 32,
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_USER": "sender@example.com",
+            "SMTP_PASS": "password",
+            "HUNYUAN_API_KEY": "model-key",
+            "QQ_INGEST_SECRET": "i" * 32,
+            "QQ_ADMIN_SECRET": "a" * 32,
+            "QQ_ALLOWED_GROUP_IDS": "group-id",
+            "QQ_REVIEW_OWNER_EMAIL": "shaolq2025@shanghaitech.edu.cn",
+            "WEB_PUBLIC_BASE_URL": "https://lockmyitem.asia",
+        }
+        errors = [entry for entry in validate_config(environment, "cloud") if entry["level"] == "error"]
+        self.assertEqual(errors, [])
+
     def test_listener_scope_does_not_require_cloud_backend(self):
         environment = {
             "QQ_BOT_APP_ID": "app-id",

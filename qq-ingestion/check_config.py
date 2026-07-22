@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -87,7 +88,17 @@ def validate_config(environment: dict[str, str], scope: str = "all") -> list[dic
         if ingest_secret and admin_secret and ingest_secret == admin_secret:
             error("QQ_ADMIN_SECRET", "must differ from QQ_INGEST_SECRET")
         require("QQ_ALLOWED_GROUP_IDS")
-        require("QQ_REVIEW_OWNER_ACTOR_ID")
+        review_owner_actor = value("QQ_REVIEW_OWNER_ACTOR_ID")
+        review_owner_email = value("QQ_REVIEW_OWNER_EMAIL").lower()
+        email_domain = (value("AUTH_EMAIL_DOMAIN") or "shanghaitech.edu.cn").lower()
+        if not review_owner_actor and not review_owner_email:
+            error("QQ_REVIEW_OWNER", "configure QQ_REVIEW_OWNER_EMAIL or QQ_REVIEW_OWNER_ACTOR_ID")
+        if review_owner_email and ("@" not in review_owner_email or not review_owner_email.endswith(f"@{email_domain}")):
+            error("QQ_REVIEW_OWNER_EMAIL", f"must use @{email_domain}")
+        if review_owner_actor and review_owner_email and "@" in review_owner_email:
+            derived_actor = f"email:{hashlib.sha256(review_owner_email.encode('utf-8')).hexdigest()}"
+            if review_owner_actor != derived_actor:
+                error("QQ_REVIEW_OWNER_ACTOR_ID", "must match the actor derived from QQ_REVIEW_OWNER_EMAIL, or be omitted")
         public_url = require("WEB_PUBLIC_BASE_URL")
         if public_url and not _is_https(public_url):
             error("WEB_PUBLIC_BASE_URL", "must be an HTTPS public site URL")

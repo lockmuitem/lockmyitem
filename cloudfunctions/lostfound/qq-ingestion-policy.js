@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 function clamp(value, min = 0, max = 1) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : min;
@@ -40,6 +42,23 @@ function applyQQRouteGuards(route = '', options = {}) {
   if (options.importMode === 'loose_images') return 'needs_review';
   if (route === 'published' && options.isProtected && !options.hasReviewOwner) return 'needs_review';
   return route;
+}
+
+function resolveQQReviewOwner({ actorId = '', email = '', emailDomain = 'shanghaitech.edu.cn' } = {}) {
+  const explicitActorId = String(actorId || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const domain = String(emailDomain || '').trim().toLowerCase();
+  const validEmail = normalizedEmail && domain && normalizedEmail.endsWith(`@${domain}`)
+    ? normalizedEmail
+    : '';
+  const derivedActorId = validEmail
+    ? `email:${crypto.createHash('sha256').update(validEmail).digest('hex')}`
+    : '';
+  return {
+    actorId: explicitActorId || derivedActorId,
+    email: validEmail,
+    derivedActorId
+  };
 }
 
 function stableJson(value) {
@@ -114,6 +133,7 @@ module.exports = {
   normalizeQQExtraction,
   qqReplyDeadlineMs,
   qqReplyMessageId,
+  resolveQQReviewOwner,
   qqSignatureMessage,
   routeQQExtraction,
   stableJson
