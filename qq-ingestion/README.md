@@ -66,7 +66,7 @@ python import_history.py --manifest messages.jsonl --dry-run
 python import_history.py --manifest messages.jsonl
 ```
 
-`--dry-run` 不需要云端凭据，会报告字段缺失、聚合结果、图片尺寸和哈希。这类裸图片因为缺少地点，后端必定进入人工审核，不会自动发布。多张同一物品的照片只有在 JSONL 中具有同一发送者且发送间隔不超过窗口，系统才会把它们作为一条记录处理。
+`--dry-run` 不需要云端凭据，会报告字段缺失、聚合结果、图片尺寸和哈希。裸图片导入会在签名载荷中标记 `importMode=loose_images`，后端不接受模型对该标记的自动发布或忽略决定，而是强制进入人工审核；内部来源同时标记其消息标识为哈希生成，不能冒充真实 QQ 消息 ID。多张同一物品的照片只有在 JSONL 中具有同一发送者且发送间隔不超过窗口，系统才会把它们作为一条记录处理。
 
 ## 验收
 

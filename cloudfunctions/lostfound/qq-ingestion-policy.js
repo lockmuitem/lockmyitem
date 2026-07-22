@@ -36,6 +36,12 @@ function routeQQExtraction(extraction = {}, thresholds = {}) {
   return 'needs_review';
 }
 
+function applyQQRouteGuards(route = '', options = {}) {
+  if (options.importMode === 'loose_images') return 'needs_review';
+  if (route === 'published' && options.isProtected && !options.hasReviewOwner) return 'needs_review';
+  return route;
+}
+
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -103,6 +109,7 @@ function qqReplyMessageId(messageId, replyUntilMs, currentTimeMs = Date.now()) {
 
 module.exports = {
   applyQQReviewCorrections,
+  applyQQRouteGuards,
   matchCampusLocation,
   normalizeQQExtraction,
   qqReplyDeadlineMs,

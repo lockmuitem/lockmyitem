@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   applyQQReviewCorrections,
+  applyQQRouteGuards,
   matchCampusLocation,
   normalizeQQExtraction,
   qqReplyDeadlineMs,
@@ -94,4 +95,16 @@ test('QQ review corrections only update approved fields and preserve sensitivity
 test('QQ extraction preserves model important level', () => {
   const value = normalizeQQExtraction({ title: '白色耳机', sensitivityLevel: 'important' });
   assert.equal(value.sensitivityLevel, 'important');
+});
+
+test('loose history images are always forced to administrator review', () => {
+  for (const modelRoute of ['published', 'needs_review', 'ignored']) {
+    assert.equal(applyQQRouteGuards(modelRoute, { importMode: 'loose_images' }), 'needs_review');
+  }
+});
+
+test('protected QQ items require a configured review owner before publishing', () => {
+  assert.equal(applyQQRouteGuards('published', { isProtected: true, hasReviewOwner: false }), 'needs_review');
+  assert.equal(applyQQRouteGuards('published', { isProtected: true, hasReviewOwner: true }), 'published');
+  assert.equal(applyQQRouteGuards('published', { isProtected: false, hasReviewOwner: false }), 'published');
 });

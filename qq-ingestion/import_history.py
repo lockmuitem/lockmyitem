@@ -63,6 +63,7 @@ def import_loose_images(client: LockMyItemIngestClient | None, directory: Path, 
             "text": "",
             "images": [data_url(image_path)],
             "sentAt": "",
+            "importMode": "loose_images",
         }
         result = client._post(payload)
         print(image_path.name, result.get("status"), result.get("draftId") or "")
