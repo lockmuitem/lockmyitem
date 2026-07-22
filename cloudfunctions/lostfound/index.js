@@ -10,6 +10,7 @@ const {
   evaluateOtpRecord,
   isClaimTokenPayloadValid,
   isApprovedToViewRequest,
+  redactInternalImageReferences,
   redactInternalItemSource,
   reviewStatusForDecision,
   redactProtectedImages,
@@ -936,7 +937,7 @@ function stripInternalItemFields(item = {}) {
     claimImageResetReason,
     ...publicItem
   } = item;
-  return redactInternalItemSource(publicItem);
+  return redactInternalItemSource(redactInternalImageReferences(publicItem));
 }
 
 function canViewProtectedImages(item = {}, event = {}, actorId = '') {
@@ -2168,7 +2169,7 @@ async function completeClaim({ itemId, item, claimantOpenid, claimantUser = {}, 
 
   const hydrated = await hydrateItemImages([{ _id: itemId, ...currentItem, ...updateData }]).catch(() => ([{ _id: itemId, ...currentItem, ...updateData }]));
   return {
-    item: sanitizeFoundItemPrivacy(hydrated[0]),
+    item: sanitizeItemForViewer(hydrated[0], {}, claimantOpenid),
     comment: comment ? { _id: comment._id, ...commentData } : null
   };
 }

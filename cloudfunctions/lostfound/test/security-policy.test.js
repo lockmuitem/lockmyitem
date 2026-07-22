@@ -11,6 +11,7 @@ const {
   evaluateOtpRecord,
   isClaimTokenPayloadValid,
   isApprovedToViewRequest,
+  redactInternalImageReferences,
   redactInternalItemSource,
   reviewStatusForDecision,
   redactProtectedImages,
@@ -109,6 +110,23 @@ test('public item source keeps platform but removes QQ identifiers', () => {
   });
   assert.deepEqual(redacted.source, { platform: 'qq' });
   assert.equal(redacted.title, '耳机');
+});
+
+test('authorized image responses still remove persistent CloudBase file references', () => {
+  const redacted = redactInternalImageReferences({
+    imageFileId: 'cloud://private/single.jpg',
+    imageFileIds: ['cloud://private/raw.jpg'],
+    imageUrls: ['https://temporary.example/raw.jpg'],
+    thumbUrl: 'https://temporary.example/raw.jpg',
+    originalImageUrl: 'cloud://private/original.jpg',
+    rawImages: ['cloud://private/raw-legacy.jpg']
+  });
+  assert.equal('imageFileId' in redacted, false);
+  assert.equal('imageFileIds' in redacted, false);
+  assert.equal('originalImageUrl' in redacted, false);
+  assert.equal('rawImages' in redacted, false);
+  assert.deepEqual(redacted.imageUrls, ['https://temporary.example/raw.jpg']);
+  assert.equal(redacted.thumbUrl, 'https://temporary.example/raw.jpg');
 });
 
 test('only an active found item can enter final claim transition', () => {

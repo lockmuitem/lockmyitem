@@ -132,6 +132,29 @@ function redactInternalItemSource(item = {}) {
   };
 }
 
+function redactInternalImageReferences(item = {}) {
+  const {
+    imageFileId,
+    imageFileIds,
+    originalImage,
+    originalImages,
+    originalImageUrl,
+    originalImageUrls,
+    rawImage,
+    rawImages,
+    ...publicItem
+  } = item;
+  void imageFileId;
+  void imageFileIds;
+  void originalImage;
+  void originalImages;
+  void originalImageUrl;
+  void originalImageUrls;
+  void rawImage;
+  void rawImages;
+  return publicItem;
+}
+
 function canCompleteActiveClaim(item = {}) {
   return item.type === 'found' && item.status === 'active';
 }
@@ -143,6 +166,7 @@ module.exports = {
   evaluateOtpRecord,
   isClaimTokenPayloadValid,
   redactInternalItemSource,
+  redactInternalImageReferences,
   redactProtectedImages,
   canCompleteActiveClaim,
   evaluateFixedWindow,
