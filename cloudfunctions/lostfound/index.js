@@ -940,7 +940,7 @@ function stripInternalItemFields(item = {}) {
 
 function canViewProtectedImages(item = {}, event = {}, actorId = '') {
   if (!isProtectedFoundItem(item)) return true;
-  if (itemBelongsToActor(item, actorId)) return true;
+  if (itemBelongsToActor(item, actorId) || canActorSeeClaimant(item, actorId)) return true;
   const tokenPayload = verifyClaimToken(event.claimToken, item._id || item.id || event.itemId, actorId);
   return claimTokenAllowsItem(tokenPayload, item);
 }
