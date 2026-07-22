@@ -35,9 +35,9 @@ If multiple Hunyuan credential modes are configured, the cloud function prefers 
 Use the CloudBase project configuration in `cloudbaserc.json` and deploy `cloudfunctions/lostfound` with cloud-side dependency installation. The function configuration is:
 
 ```text
-runtime: Nodejs16.13
+runtime: Nodejs20.19
 handler: index.main
-timeout: 30
+timeout: 60
 memorySize: 512
 ```
 
@@ -47,7 +47,9 @@ The same timeout and memory settings are also recorded in:
 cloudfunctions/lostfound/config.json
 ```
 
-If the CloudBase console reports `FUNCTIONS_TIME_LIMIT_EXCEEDED`, set the `lostfound` timeout to 30 seconds manually and deploy again.
+Node.js 20 is used so the deployed runtime continues receiving supported security and dependency updates. The 60-second timeout leaves room for model inference and multi-image processing. Keep authentication, SMTP, Hunyuan, and QQ secrets in CloudBase environment variables; never add them to `cloudbaserc.json`.
+
+If the CloudBase console reports `FUNCTIONS_TIME_LIMIT_EXCEEDED`, confirm that the `lostfound` timeout is 60 seconds and deploy again.
 
 Before production traffic, deploy the deny-by-default database and storage rules described in `SECURITY_RULES.md`. The JSON files are executable CloudBase rules; keeping them only in Git does not change console permissions.
 

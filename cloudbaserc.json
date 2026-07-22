@@ -5,9 +5,9 @@
   "functions": [
     {
       "name": "lostfound",
-      "runtime": "Nodejs16.13",
+      "runtime": "Nodejs20.19",
       "handler": "index.main",
-      "timeout": 30,
+      "timeout": 60,
       "memorySize": 512
     }
   ]
