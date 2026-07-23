@@ -14,22 +14,25 @@ def data_url(path: Path) -> str:
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
-def materialize_batch(batch: dict, base_dir: Path) -> dict:
+def materialize_batch(batch: dict, base_dir: Path, force_review: bool = False) -> dict:
     payload = {key: value for key, value in batch.items() if key != "imagePaths"}
     payload["images"] = [data_url((base_dir / value).resolve()) for value in batch.get("imagePaths", [])]
     payload["replyEnabled"] = False
+    if force_review:
+        payload["importMode"] = "loose_images"
     return payload
 
 
-def preview_batch(batch: dict, base_dir: Path) -> dict:
+def preview_batch(batch: dict, base_dir: Path, force_review: bool = False) -> dict:
     return {
         **batch,
         "images": [str((base_dir / value).resolve()) for value in batch.get("imagePaths", [])],
-        "expectedRoute": "model_decides" if batch.get("text") else "needs_review",
+        "expectedRoute": "needs_review" if force_review or not batch.get("text") else "model_decides",
     }
 
 
-def import_manifest(path: Path, client: LockMyItemIngestClient | None, dry_run: bool, window_seconds: int) -> int:
+def import_manifest(path: Path, client: LockMyItemIngestClient | None, dry_run: bool, window_seconds: int,
+                    force_review: bool = False) -> int:
     batches, errors = aggregate_manifest_records(read_manifest(path), path.parent, window_seconds)
     if errors:
         print(json.dumps({"valid": False, "errors": errors}, ensure_ascii=False, indent=2))
@@ -40,11 +43,12 @@ def import_manifest(path: Path, client: LockMyItemIngestClient | None, dry_run: 
             "messageCount": sum(len(batch["messageIds"]) for batch in batches),
             "batchCount": len(batches),
             "windowSeconds": window_seconds,
-            "batches": [preview_batch(batch, path.parent) for batch in batches],
+            "forceReview": force_review,
+            "batches": [preview_batch(batch, path.parent, force_review) for batch in batches],
         }, ensure_ascii=False, indent=2))
         return 0
     for index, batch in enumerate(batches, 1):
-        result = client._post(materialize_batch(batch, path.parent))
+        result = client._post(materialize_batch(batch, path.parent, force_review))
         print(index, result.get("status"), result.get("itemId") or result.get("draftId") or "")
     return 0
 
@@ -80,9 +84,10 @@ if __name__ == "__main__":
     parser.add_argument("--group-id", default="history-import")
     parser.add_argument("--group-name", default="上科大健忘者互助协会")
     parser.add_argument("--window-seconds", type=int, default=45)
+    parser.add_argument("--force-review", action="store_true", help="无论模型置信度如何，全部导入为待审核草稿")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     ingest_client = None if args.dry_run else LockMyItemIngestClient()
     if args.manifest:
-        raise SystemExit(import_manifest(args.manifest, ingest_client, args.dry_run, args.window_seconds))
+        raise SystemExit(import_manifest(args.manifest, ingest_client, args.dry_run, args.window_seconds, args.force_review))
     raise SystemExit(import_loose_images(ingest_client, args.image_dir, args.group_id, args.group_name, args.dry_run))

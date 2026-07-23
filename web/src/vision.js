@@ -1,15 +1,10 @@
+import { cloudbaseConfigured, cloudbaseFunctionName, getCloudbaseApp } from './cloudbaseClient.js';
 import { sanitizeFoundItemPrivacy } from './privacy.js';
 
-const TCB_ENV_ID = import.meta.env.VITE_CLOUDBASE_ENV_ID || import.meta.env.VITE_TCB_ENV_ID || 'cloud1-d9gnyuxf5b44b6b92';
-const TCB_ACCESS_KEY = import.meta.env.VITE_CLOUDBASE_ACCESS_KEY || import.meta.env.VITE_TCB_ACCESS_KEY || '';
-const TCB_REGION = import.meta.env.VITE_CLOUDBASE_REGION || import.meta.env.VITE_TCB_REGION || 'ap-shanghai';
-const TCB_FUNCTION_NAME = import.meta.env.VITE_CLOUDBASE_FUNCTION_NAME || import.meta.env.VITE_TCB_FUNCTION_NAME || 'lostfound';
-const TCB_ENABLED = import.meta.env.VITE_DISABLE_TCB_HUNYUAN !== 'true' && Boolean(TCB_ENV_ID);
+const TCB_ENABLED = import.meta.env.VITE_DISABLE_TCB_HUNYUAN !== 'true' && cloudbaseConfigured;
 const REMOTE_MODEL_ENDPOINT = import.meta.env.VITE_MODEL_API_URL || import.meta.env.VITE_HUNYUAN_API_URL || '';
 const REMOTE_MODEL_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_MODEL_API_FALLBACK === 'true';
 const CLIENT_ID_KEY = 'lockmyitem_web_client_id';
-
-let cloudbaseAppPromise = null;
 
 function unique(values = []) {
   return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
@@ -34,6 +29,8 @@ function normalizeRemoteData(raw = {}) {
     semanticTags: payload.semanticTags || payload.tags || [],
     imageEmbedding: payload.imageEmbedding || [],
     semanticEmbedding: payload.semanticEmbedding || [],
+    sensitivityLevel: payload.sensitivityLevel || 'normal',
+    sensitivityReasons: payload.sensitivityReasons || [],
     modelSources: payload.modelSources || {},
     rawPredictions: payload.rawPredictions || []
   };
@@ -157,64 +154,13 @@ function getClientId() {
   }
 }
 
-async function getCloudbaseApp() {
-  if (!cloudbaseAppPromise) {
-    cloudbaseAppPromise = Promise.resolve().then(async () => {
-      const { default: cloudbase } = await import('@cloudbase/js-sdk');
-      try {
-        const app = cloudbase.init({ env: TCB_ENV_ID, region: TCB_REGION });
-        await ensureCloudbaseAuth(app);
-        return app;
-      } catch (error) {
-        if (!TCB_ACCESS_KEY) throw error;
-        console.warn('CloudBase anonymous auth unavailable; continuing with publishable key fallback.', error);
-      }
-      return cloudbase.init({ env: TCB_ENV_ID, region: TCB_REGION, accessKey: TCB_ACCESS_KEY });
-    });
-  }
-  return cloudbaseAppPromise;
-}
-
-async function ensureCloudbaseAuth(app) {
-  const auth = typeof app.auth === 'function' ? app.auth({ persistence: 'local' }) : app.auth;
-  if (!auth) return;
-
-  const state = await readCloudbaseLoginState(auth);
-  if (state) return;
-
-  if (typeof auth.signInAnonymously === 'function') {
-    await auth.signInAnonymously();
-    return;
-  }
-
-  const provider = typeof auth.anonymousAuthProvider === 'function'
-    ? auth.anonymousAuthProvider()
-    : auth.anonymousAuthProvider;
-  if (provider?.signIn) {
-    await provider.signIn();
-  }
-}
-
-async function readCloudbaseLoginState(auth) {
-  const getters = [auth.hasLoginState, auth.getLoginState].filter((getter) => typeof getter === 'function');
-  for (const getter of getters) {
-    try {
-      const state = await Promise.resolve(getter.call(auth));
-      if (state) return state;
-    } catch {
-      // Continue to the next SDK-compatible login-state API.
-    }
-  }
-  return null;
-}
-
 async function classifyViaCloudbase(imageDataUrl, hint, options = {}) {
   if (!TCB_ENABLED) return null;
 
   const app = await getCloudbaseApp();
   const response = await withTimeout(
     app.callFunction({
-      name: TCB_FUNCTION_NAME,
+      name: cloudbaseFunctionName,
       parse: true,
       data: {
         action: 'classifyImage',

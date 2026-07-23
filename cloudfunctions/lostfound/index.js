@@ -321,6 +321,10 @@ function normalizeHunyuanResult(result = {}) {
     colors: unique(result.colors || []),
     accessories: unique(result.accessories || []),
     objects: unique(result.objects || result.yoloObjects || []),
+    sensitivityLevel: ['normal', 'important', 'sensitive'].includes(String(result.sensitivityLevel || '').toLowerCase())
+      ? String(result.sensitivityLevel).toLowerCase()
+      : 'normal',
+    sensitivityReasons: unique(result.sensitivityReasons || result.privacyReasons || []),
     imageEmbedding: result.imageEmbedding || result.image_embedding || [],
     semanticEmbedding: result.semanticEmbedding || result.semantic_embedding || result.embedding || []
   };
@@ -1027,6 +1031,9 @@ function buildVisionPrompt(hint = '', purpose = 'item', itemType = '') {
       '你是上海科技大学校园失物招领系统的方位图片识别助手。',
       '请结合图片和用户补充描述，只提取可帮助同学定位物品所在位置的空间线索。',
       '重点描述入口、楼层、门牌、桌椅、楼梯、电梯、靠窗/靠路侧、附近标志物等信息。',
+      '不要识别或描述失物本身，只描述它相对于环境的位置；例如写“红色座椅之间的木地板上”，不要写“鞋子/耳机在地板上”。',
+      '画面中出现柜门、座位、门牌等编号时优先准确写出编号；看不清就不要猜。',
+      '没有明确楼名、门牌或校园标志时，不得猜测具体建筑或房间。',
       '不要重复地点名称和地点区域，不要描述领取流程，不要提到评论区或联系发布人。',
       '必须只返回 JSON，不要 Markdown，不要解释。',
       'JSON 字段：title, description, category, tags, colors, accessories, objects。',
@@ -1040,11 +1047,15 @@ function buildVisionPrompt(hint = '', purpose = 'item', itemType = '') {
   return [
     '你是上海科技大学校园失物招领系统的图像识别助手。',
     '请结合图片和用户补充描述，提取可用于失物匹配的结构化标签。',
+    '先定位图片中最可能被捡到的完整实体，再识别它；桌椅、地板、塑料袋等通常只是背景，不要把背景物体当成失物。',
+    '必须仔细区分：能看到机身、屏幕或真实摄像头镜片的是手机，不是手机保护套；打开的无线耳机充电盒及盒内耳机不是鞋子。',
     '只提取物品信息，不要提到评论区、联系失主、领取流程或发布建议。',
     ...privacyPromptLines(itemType),
     '必须只返回 JSON，不要 Markdown，不要解释。',
-    'JSON 字段：title, description, category, tags, colors, accessories, objects。',
+    'JSON 字段：title, description, category, tags, colors, accessories, objects, sensitivityLevel, sensitivityReasons。',
     'category 从以下中文类别中选择：证件、电子产品、书本资料、衣物、钥匙、校园卡、雨伞、水杯、其他。',
+    'sensitivityLevel 只能是 normal、important、sensitive：校园卡、银行卡、证件、带可识别姓名或学号的纸张为 sensitive；手机、耳机、耳机盒、钱包、钥匙等贵重物品为 important；其余为 normal。',
+    '如果判断为 sensitive，只在 sensitivityReasons 写“含姓名”“含学号”“证件/卡片”等类型，不要抄录具体姓名、号码或二维码内容。',
     'title/description/tags/colors/accessories/objects 必须使用简体中文。',
     `用户补充描述：${hint || '无'}`
   ].join('\n');
@@ -2524,6 +2535,8 @@ async function classifyImage(event, context) {
     visualDescription,
     imageEmbedding: semantic.imageEmbedding,
     semanticEmbedding: semantic.semanticEmbedding,
+    sensitivityLevel: semantic.sensitivityLevel,
+    sensitivityReasons: semantic.sensitivityReasons,
     modelSources: {
       provider: HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey ? 'tencentcloud-hunyuan' : 'tencent-hunyuan-compatible',
       baseUrl: HUNYUAN_CONFIG.secretId && HUNYUAN_CONFIG.secretKey ? HUNYUAN_CONFIG.tencentEndpoint : HUNYUAN_CONFIG.baseUrl,
